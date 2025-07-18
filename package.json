@@ -1,0 +1,11 @@
+{
+  "name": "aitigos",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:ednu-ai/aitigos.git",
+  "author": "SamuelhncarneiroEdnu <samuel.carneiro@ednuai.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@shopify/cli": "^3.78.1"
+  }
+}

@@ -1,0 +1,376 @@
+<!-- templates/product_shopify.html -->
+{% extends layout_path %}
+
+{% load humanize %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}Produtos Shopify{% endblock title %}
+
+{% block vendor_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-bs5/datatables.bootstrap5.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-buttons-bs5/buttons.bootstrap5.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/flatpickr/flatpickr.css' %}" />
+{% endblock vendor_css %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">Produtos do Shopify</h5>
+        {% if has_shopify %}
+          <button id="btn-sync" class="btn btn-primary">Sincronizar com Shopify</button>
+        {% else %}
+          <a href="{% url 'shopify:connect' %}" class="btn btn-outline-primary">Conectar Loja Shopify</a>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% csrf_token %}
+        <div id="alert-container"></div>
+        
+        {% if not has_shopify %}
+        <div class="alert alert-warning">
+          <i class="bx bx-info-circle me-2"></i>
+          Você não tem nenhuma loja Shopify conectada. <a href="{% url 'shopify:connect' %}" class="alert-link">Conectar loja</a>.
+        </div>
+        {% endif %}
+        
+        <div class="d-flex justify-content-between mb-3">
+          <div>Total de Produtos: <span id="products-count" class="badge bg-primary">{{ products_count }}</span></div>
+          <div>Total de Variantes: <span id="variants-count" class="badge bg-success">{{ variants_count }}</span></div>
+        </div>
+        
+        <div class="table-responsive">
+          <table class="table table-striped table-hover" id="products-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>TÍTULO</th>
+                <th>TIPO</th>
+                <th>FORNECEDOR</th>
+                <th>PREÇO</th>
+                <th>STATUS</th>
+                <th>AÇÕES</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Carregado via AJAX -->
+              <tr>
+                <td colspan="7" class="text-center">Carregando produtos...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para detalhes do produto -->
+<div class="modal fade" id="product-details-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Detalhes do Produto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Conteúdo preenchido via AJAX -->
+        <div class="text-center">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Carregando...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>
+  let syncCounter = 0;
+  let syncInterval;
+
+  document.addEventListener('DOMContentLoaded', function() {
+    loadProducts();
+    
+    {% if has_shopify %}
+    document.getElementById('btn-sync').addEventListener('click', function() {
+      syncProducts();
+    });
+    {% endif %}
+    
+    {% if sync_message %}
+      showAlert('{% if sync_success %}success{% else %}danger{% endif %}', '{{ sync_message }}');
+    {% endif %}
+  });
+  
+  
+  function loadProducts() {
+    // Mostrar mensagem de carregamento
+    document.querySelector('#products-table tbody').innerHTML = 
+      '<tr><td colspan="7" class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando produtos...</span></div></td></tr>';
+    
+    fetch('/product-shopify/api/products/')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        const tableBody = document.querySelector('#products-table tbody');
+        tableBody.innerHTML = '';
+        
+        if (data.products && data.products.length > 0) {
+          data.products.forEach(product => {
+            const row = document.createElement('tr');
+              
+            // Status do produto
+            const statusBadge = product.status === 'active'
+              ? '<span class="badge bg-success">Ativo</span>'
+              : '<span class="badge bg-warning">Rascunho</span>';
+            
+            row.innerHTML = `
+              <td>${product.shopify_id}</td>
+              <td>${product.title}</td>
+              <td>${product.product_type || '-'}</td>
+              <td>${product.vendor || '-'}</td>
+              <td>${(product.price || 0).toLocaleString('pt-PT', {style: 'currency', currency: 'EUR'})}</td>
+              <td>${statusBadge}</td>
+              <td>
+                <button class="btn btn-sm btn-info view-product" data-id="${product.shopify_id}" title="Ver detalhes">
+                  <i class="bx bx-show"></i>
+                </button>
+              </td>
+            `;
+            
+            tableBody.appendChild(row);
+          });
+          
+          // Atualizar contadores
+          if (document.getElementById('products-count')) {
+            document.getElementById('products-count').textContent = data.total_count;
+          }
+          
+          // Adicionar eventos
+          addEventListeners();
+        } else {
+          tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhum produto encontrado</td></tr>';
+        }
+      })
+      .catch(error => {
+        console.error('Erro ao carregar produtos:', error);
+        document.querySelector('#products-table tbody').innerHTML = 
+          '<tr><td colspan="7" class="text-center text-danger">Erro ao carregar produtos. Verifique o console para detalhes.</td></tr>';
+        showAlert('danger', 'Erro ao carregar produtos: ' + error.message);
+      });
+  }
+  
+  function addEventListeners() {
+    // Adicionar eventos aos botões de visualização
+    document.querySelectorAll('.view-product').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const productId = this.dataset.id;
+        showProductDetails(productId);
+      });
+    });
+    
+    // Tornar linhas clicáveis
+    document.querySelectorAll('#products-table tbody tr').forEach(row => {
+      row.addEventListener('click', function() {
+        const viewBtn = this.querySelector('.view-product');
+        if (viewBtn) {
+          const productId = viewBtn.dataset.id;
+          showProductDetails(productId);
+        }
+      });
+      row.style.cursor = 'pointer';
+    });
+  }
+  
+  function showProductDetails(productId) {
+    // Mostrar o modal com loading
+    const detailsModal = new bootstrap.Modal(document.getElementById('product-details-modal'));
+    detailsModal.show();
+    
+    // Resetar o conteúdo do modal para mostrar o spinner
+    document.querySelector('#product-details-modal .modal-body').innerHTML = `
+      <div class="text-center">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Carregando...</span>
+        </div>
+      </div>
+    `;
+    
+    fetch(`/product-shopify/api/products/${productId}/`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        const product = data.product;
+        
+        // Montar HTML para as variantes
+        let variantsHtml = '<div class="table-responsive mt-3"><table class="table table-bordered">';
+        variantsHtml += '<thead><tr><th>Variante</th><th>SKU</th><th>Código de Barras</th><th>Preço</th><th>Estoque</th></tr></thead><tbody>';
+        
+        if (product.variants && product.variants.length > 0) {
+          product.variants.forEach(variant => {
+            variantsHtml += `
+              <tr>
+                <td>${variant.title}</td>
+                <td>${variant.sku || '-'}</td>
+                <td>${variant.barcode || '-'}</td>
+                <td>${parseFloat(variant.price).toLocaleString('pt-PT', {style: 'currency', currency: 'EUR'})}</td>
+                <td>${variant.inventory_quantity}</td>
+              </tr>
+            `;
+          });
+        } else {
+          variantsHtml += '<tr><td colspan="5" class="text-center">Nenhuma variante encontrada</td></tr>';
+        }
+        
+        variantsHtml += '</tbody></table></div>';
+        
+        // Montar HTML para as imagens
+        let imagesHtml = '';
+        if (product.images && product.images.length > 0) {
+          imagesHtml = '<div class="mt-4"><h6>Imagens</h6><div class="d-flex flex-wrap gap-2">';
+          
+          product.images.forEach(image => {
+            imagesHtml += `
+              <div class="border rounded p-1" style="width: 100px; height: 100px;">
+                <img src="${image.src}" alt="${image.alt || product.title}" class="img-fluid" style="width: 100%; height: 100%; object-fit: contain;">
+              </div>
+            `;
+          });
+          
+          imagesHtml += '</div></div>';
+        }
+        
+        // Preencher o conteúdo do modal
+        const modalBody = document.querySelector('#product-details-modal .modal-body');
+        modalBody.innerHTML = `
+          <div class="row">
+            <div class="col-md-6">
+              <h5>${product.title}</h5>
+              <p><strong>ID:</strong> ${product.shopify_id}</p>
+              <p><strong>Handle:</strong> ${product.handle || '-'}</p>
+              <p><strong>Tipo:</strong> ${product.product_type || '-'}</p>
+              <p><strong>Fornecedor:</strong> ${product.vendor || '-'}</p>
+              <p><strong>Status:</strong> ${product.status}</p>
+              <p><strong>Tags:</strong> ${product.tags || '-'}</p>
+            </div>
+            <div class="col-md-6">
+              <h6>Descrição</h6>
+              <div class="border p-2 rounded" style="max-height: 200px; overflow-y: auto;">
+                ${product.body_html || '<p class="text-muted">Sem descrição</p>'}
+              </div>
+            </div>
+          </div>
+          
+          <h6 class="mt-4">Variantes (${product.variants ? product.variants.length : 0})</h6>
+          ${variantsHtml}
+          
+          ${imagesHtml}
+        `;
+      })
+      .catch(error => {
+        console.error('Erro ao carregar detalhes do produto:', error);
+        document.querySelector('#product-details-modal .modal-body').innerHTML = `
+          <div class="alert alert-danger">
+            Erro ao carregar detalhes do produto: ${error.message}
+          </div>
+        `;
+      });
+  }
+  
+  function syncProducts() {
+    const btn = document.getElementById('btn-sync');
+    if (!btn) return;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Sincronizando...';
+    
+    // Obter o CSRF token
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch('/product-shopify/api/sync/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    })
+    .then(response => {
+      return response.json().then(data => {
+        if (!response.ok) {
+          throw new Error(data.message || `Erro: ${response.status}`);
+        }
+        return data;
+      });
+    })
+    .then(data => {
+      if (data.success) {
+        showAlert('success', `Sincronização concluída! ${data.message}`);
+        // Recarregar produtos
+        loadProducts(false);
+      } else {
+        showAlert('danger', `Erro ao sincronizar: ${data.message}`);
+      }
+    })
+    .catch(error => {
+      console.error('Erro na sincronização:', error);
+      showAlert('danger', `Erro ao sincronizar produtos: ${error.message}`);
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerHTML = 'Sincronizar com Shopify';
+    });
+  }
+  
+  function showAlert(type, message, duration = 5000) {
+    const alertContainer = document.getElementById('alert-container');
+    if (!alertContainer) return;
+    
+    // Criar alerta
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // Limpar alertas anteriores do mesmo tipo
+    alertContainer.querySelectorAll(`.alert-${type}`).forEach(alert => alert.remove());
+    
+    // Adicionar novo alerta
+    alertContainer.appendChild(alertDiv);
+    
+    // Auto-fechar após a duração especificada
+    setTimeout(() => {
+      try {
+        if (alertDiv && alertDiv.parentNode) {
+          alertDiv.classList.remove('show');
+          setTimeout(() => {
+            if (alertDiv && alertDiv.parentNode) {
+              alertDiv.remove();
+            }
+          }, 150);
+        }
+      } catch (e) {
+        console.error('Erro ao remover alerta:', e);
+      }
+    }, duration);
+  }
+</script>
+{% endblock page_js %}

@@ -1,0 +1,706 @@
+<!-- templates/product_moloni.html -->
+{% extends layout_path %}
+
+{% load humanize %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}Produtos Moloni{% endblock title %}
+
+{% block vendor_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-bs5/datatables.bootstrap5.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/flatpickr/flatpickr.css' %}" />
+{% endblock vendor_css %}
+
+{% block vendor_js %}
+{{ block.super }}
+<script src="{% static 'vendor/libs/datatables-bs5/datatables-bootstrap5.js' %}"></script>
+<script src="{% static 'vendor/libs/moment/moment.js' %}"></script>
+<script src="{% static 'vendor/libs/flatpickr/flatpickr.js' %}"></script>
+{% endblock vendor_js %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">Produtos do Moloni</h5>
+        <div class="d-flex gap-2">
+          <button id="btn-sync" class="btn btn-primary">
+            <i class="ti ti-refresh me-1"></i>Sincronizar com Moloni
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        {% csrf_token %}
+        
+        <!-- Alert para status da sincronização -->
+        <div id="sync-alert" style="display: none;"></div>
+        
+        <!-- Progresso da sincronização em background -->
+        <div id="background-sync-progress" class="card border-primary mb-3" style="display: none;">
+          <div class="card-header bg-primary text-white py-2">
+            <div class="d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">
+                <i class="ti ti-refresh me-2"></i>Sincronização em Andamento
+              </h6>
+              <button id="btn-cancel-sync" class="btn btn-outline-light btn-sm">
+                <i class="ti ti-x me-1"></i>Cancelar
+              </button>
+            </div>
+          </div>
+          <div class="card-body py-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <small class="text-muted" id="sync-message">Iniciando...</small>
+              <small class="text-muted" id="sync-percentage">0%</small>
+            </div>
+            <div class="progress mb-2" style="height: 8px;">
+              <div id="sync-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                   role="progressbar" style="width: 0%"></div>
+            </div>
+            <div class="row text-center">
+              <div class="col-3">
+                <small class="text-success">
+                  <strong id="sync-added">0</strong><br>
+                  <span class="text-muted">Adicionados</span>
+                </small>
+              </div>
+              <div class="col-3">
+                <small class="text-primary">
+                  <strong id="sync-updated">0</strong><br>
+                  <span class="text-muted">Atualizados</span>
+                </small>
+              </div>
+              <div class="col-3">
+                <small class="text-warning">
+                  <strong id="sync-deleted">0</strong><br>
+                  <span class="text-muted">Removidos</span>
+                </small>
+              </div>
+              <div class="col-3">
+                <small class="text-danger">
+                  <strong id="sync-errors">0</strong><br>
+                  <span class="text-muted">Erros</span>
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="d-flex justify-content-between mb-3">
+          <div>Total de Produtos: <span class="badge bg-primary">{{ products_count }}</span></div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-striped table-hover text-center" id="products-table">
+            <thead>
+              <tr>
+                <th class="text-center">Referência</th>
+                <th class="text-center">Nome</th>
+                <th class="text-center">Código de Barras</th>
+                <th class="text-center">Categoria</th>
+                <th class="text-center">Fornecedor</th>
+                <th class="text-center">Preço</th>
+                <th class="text-center">Data de Criação</th>
+                {% if user_companies|length > 1 %}
+                <th>Empresa</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Dados preenchidos via AJAX -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para detalhes do produto -->
+<div class="modal fade" id="product-details-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4 class="modal-title">Detalhes do Produto</h4>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Conteúdo preenchido via AJAX -->
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>
+  let productsTable = null;
+  let syncProgressInterval = null;
+  
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM carregado, inicializando página...');
+    
+    initializeProducts();
+    
+    const btnSync = document.getElementById('btn-sync');
+    if (btnSync) {
+      btnSync.addEventListener('click', function() {
+        console.log('Botão sincronizar clicado');
+        startBackgroundSync(true);
+      });
+    }
+    
+    const btnCancelSync = document.getElementById('btn-cancel-sync');
+    if (btnCancelSync) {
+      btnCancelSync.addEventListener('click', function() {
+        console.log('Botão cancelar clicado');
+        cancelBackgroundSync();
+      });
+    }
+    
+    console.log('Verificando sincronização existente...');
+    checkExistingSync();
+    
+    {% if auto_sync %}
+    console.log('Auto-sync habilitado via contexto Django');
+    setTimeout(function() {
+      console.log('Auto-sync habilitado, verificando se sincronização iniciou...');
+      checkExistingSync();
+    }, 2000);
+    {% endif %}
+  });
+  
+  function initializeProducts() {
+    console.log('Inicializando produtos...');
+    
+    loadProducts().then(() => {
+      console.log('Produtos carregados, verificando auto-sync...');
+      setTimeout(() => {
+        checkAndStartAutoSync();
+      }, 500);
+    }).catch(error => {
+      console.error('Erro ao carregar produtos:', error);
+      setTimeout(() => {
+        checkAndStartAutoSync();
+      }, 1000);
+    });
+  }
+  
+  function startBackgroundSync(forceDelete = true) {
+    const btn = document.getElementById('btn-sync');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Iniciando...';
+    }
+    
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (!csrftoken) {
+      console.error('CSRF token não encontrado');
+      return;
+    }
+    
+    fetch('/product-moloni/api/start-background-sync/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken.value,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ force_delete: forceDelete })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showAlert('success', data.message);
+        showBackgroundProgress();
+        startProgressMonitoring();
+      } else {
+        showAlert('danger', data.message);
+      }
+    })
+    .catch(error => {
+      console.error('Erro ao iniciar sincronização:', error);
+      showAlert('danger', `Erro ao iniciar sincronização: ${error.message}`);
+    })
+    .finally(() => {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-refresh me-1"></i>Sincronizar com Moloni';
+      }
+    });
+  }
+  
+  function checkExistingSync() {
+    fetch('/product-moloni/api/sync-progress/')
+      .then(response => response.json())
+      .then(data => {
+        if (data.success && data.progress && data.progress.status in ['started', 'processing']) {
+          console.log('Sincronização em andamento detectada');
+          showBackgroundProgress();
+          startProgressMonitoring();
+          showAlert('info', 'Sincronização em andamento...');
+        } else {
+          console.log('Nenhuma sincronização em andamento');
+        }
+      })
+      .catch(error => {
+        console.log('Nenhuma sincronização em andamento ou erro ao verificar:', error.message);
+      });
+  }
+  
+  let shouldAutoSync = true;
+  
+  function checkAndStartAutoSync() {
+    console.log('Verificando necessidade de sync automático...');
+    
+    if (!shouldAutoSync) {
+      console.log('Auto-sync desabilitado, apenas verificando sync existente...');
+      checkExistingSync();
+      return;
+    }
+    
+    fetch('/product-moloni/api/check-auto-sync/')
+      .then(response => response.json())
+      .then(data => {
+        console.log('Resposta do check-auto-sync:', data);
+        
+        if (data.success) {
+          if (data.sync_in_progress) {
+            console.log('Sincronização já em andamento detectada');
+            showBackgroundProgress();
+            startProgressMonitoring();
+            showAlert('info', 'Sincronização em andamento...');
+            
+          } else if (data.sync_started) {
+            console.log('Sincronização automática iniciada:', data.reason);
+            showAlert('info', `Sincronização automática iniciada: ${data.reason}`);
+            
+            setTimeout(() => {
+              checkExistingSync();
+            }, 2000);
+            
+          } else {
+            const lastSyncTime = localStorage.getItem('lastSyncTime');
+            const now = Date.now();
+            const fiveMinutes = 1 * 60 * 1000;
+            
+            if (!lastSyncTime || (now - parseInt(lastSyncTime)) > fiveMinutes) {
+              console.log('Iniciando sincronização automática (última sync há mais de min ou inexistente)...');
+              showAlert('info', 'Verificando atualizações dos produtos...');
+              
+              localStorage.setItem('lastSyncTime', now.toString());
+              
+              startBackgroundSync(true);
+            } else {
+              console.log('Sincronização recente encontrada, pulando auto-sync');
+            }
+          }
+        } else {
+          console.error('Erro ao verificar sync automático:', data.message);
+          
+          const lastSyncTime = localStorage.getItem('lastSyncTime');
+          const now = Date.now();
+          const tenMinutes = 10 * 60 * 1000;
+          
+          if (!lastSyncTime || (now - parseInt(lastSyncTime)) > tenMinutes) {
+            console.log('Erro na verificação, iniciando sync como fallback...');
+            showAlert('info', 'Iniciando sincronização automática...');
+            localStorage.setItem('lastSyncTime', now.toString());
+            startBackgroundSync(true);
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Erro ao verificar sync automático:', error);
+        
+        const lastSyncTime = localStorage.getItem('lastSyncTime');
+        const now = Date.now();
+        const tenMinutes = 10 * 60 * 1000;
+        
+        if (!lastSyncTime || (now - parseInt(lastSyncTime)) > tenMinutes) {
+          console.log('Erro na requisição, iniciando sync como fallback...');
+          showAlert('info', 'Iniciando sincronização automática...');
+          localStorage.setItem('lastSyncTime', now.toString());
+          startBackgroundSync(true);
+        }
+      });
+  }
+  
+  function startProgressMonitoring() {
+    if (syncProgressInterval) {
+      clearInterval(syncProgressInterval);
+    }
+    
+    syncProgressInterval = setInterval(() => {
+      updateSyncProgress();
+    }, 2000); // Atualizar a cada 2 segundos
+  }
+  
+  function updateSyncProgress() {
+    fetch('/product-moloni/api/sync-progress/')
+      .then(response => response.json())
+      .then(data => {
+        if (!data.success || !data.progress) {
+          hideBackgroundProgress();
+          return;
+        }
+        
+        const progress = data.progress;
+        
+        // Atualizar elementos da interface com verificação
+        const syncMessage = document.getElementById('sync-message');
+        const syncPercentage = document.getElementById('sync-percentage');
+        const syncProgressBar = document.getElementById('sync-progress-bar');
+        
+        if (syncMessage) syncMessage.textContent = progress.message || 'Processando...';
+        if (syncPercentage) syncPercentage.textContent = `${progress.progress || 0}%`;
+        if (syncProgressBar) syncProgressBar.style.width = `${progress.progress || 0}%`;
+        
+        // Atualizar estatísticas
+        const stats = progress.stats || {};
+        const syncAdded = document.getElementById('sync-added');
+        const syncUpdated = document.getElementById('sync-updated');
+        const syncDeleted = document.getElementById('sync-deleted');
+        const syncErrors = document.getElementById('sync-errors');
+        
+        if (syncAdded) syncAdded.textContent = stats.added || 0;
+        if (syncUpdated) syncUpdated.textContent = stats.updated || 0;
+        if (syncDeleted) syncDeleted.textContent = stats.deleted || 0;
+        if (syncErrors) syncErrors.textContent = stats.errors || 0;
+        
+        // Verificar se terminou
+        if (progress.status === 'completed') {
+          hideBackgroundProgress();
+          showAlert('success', progress.message || 'Sincronização concluída!');
+          onSyncComplete();
+          
+        } else if (progress.status === 'error') {
+          hideBackgroundProgress();
+          showAlert('danger', progress.message || 'Erro na sincronização');
+          
+        } else if (progress.status === 'cancelled') {
+          hideBackgroundProgress();
+          showAlert('warning', 'Sincronização cancelada');
+        }
+      })
+      .catch(error => {
+        console.error('Erro ao obter progresso:', error);
+      });
+  }
+  
+  function onSyncComplete() {
+    console.log('Sincronização concluída, recarregando produtos...');
+    
+    // Recarregar produtos
+    loadProducts();
+    
+    // Atualizar contador no badge
+    setTimeout(() => {
+      updateProductsCount();
+    }, 1000);
+  }
+  
+  function updateProductsCount() {
+    fetch('/product-moloni/api/products/')
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          const badge = document.querySelector('.badge.bg-primary');
+          if (badge) {
+            badge.textContent = data.total || 0;
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Erro ao atualizar contador:', error);
+      });
+  }
+  
+  function showBackgroundProgress() {
+    const progressEl = document.getElementById('background-sync-progress');
+    const btnSync = document.getElementById('btn-sync');
+    
+    if (progressEl) progressEl.style.display = 'block';
+    if (btnSync) btnSync.disabled = true;
+  }
+  
+  function hideBackgroundProgress() {
+    const progressEl = document.getElementById('background-sync-progress');
+    const btnSync = document.getElementById('btn-sync');
+    
+    if (progressEl) progressEl.style.display = 'none';
+    if (btnSync) btnSync.disabled = false;
+    
+    if (syncProgressInterval) {
+      clearInterval(syncProgressInterval);
+      syncProgressInterval = null;
+    }
+  }
+  
+  function cancelBackgroundSync() {
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (!csrftoken) {
+      console.error('CSRF token não encontrado');
+      return;
+    }
+    
+    fetch('/product-moloni/api/cancel-background-sync/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken.value,
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showAlert('warning', data.message);
+        hideBackgroundProgress();
+      } else {
+        showAlert('danger', data.message);
+      }
+    })
+    .catch(error => {
+      console.error('Erro ao cancelar sincronização:', error);
+      showAlert('danger', `Erro ao cancelar: ${error.message}`);
+    });
+  }
+  
+  function loadProducts() {
+    const tableBody = document.querySelector('#products-table tbody');
+    if (tableBody) {
+      tableBody.innerHTML = '<tr><td colspan="7" class="text-center"><div class="spinner-border" role="status"></div><p>Carregando produtos...</p></td></tr>';
+    }
+    
+    return fetch('/product-moloni/api/products/')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (!data.success) {
+          showAlert('warning', data.message || 'Erro ao carregar produtos');
+          return;
+        }
+        
+        if (productsTable) {
+          try {
+            productsTable.destroy();
+            productsTable = null;
+            console.log('DataTable anterior destruído');
+          } catch (error) {
+            console.warn('Erro ao destruir DataTable anterior:', error);
+          }
+        }
+        
+        const table = document.getElementById('products-table');
+        if (!table) return;
+        
+        table.innerHTML = `
+          <thead>
+            <tr>
+              <th class="text-center">Referência</th>
+              <th class="text-center">Nome</th>
+              <th class="text-center">Código de Barras</th>
+              <th class="text-center">Categoria</th>
+              <th class="text-center">Fornecedor</th>
+              <th class="text-center">Preço</th>
+              <th class="text-center">Data de Criação</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        `;
+        
+        const tableBody = table.querySelector('tbody');
+        if (!tableBody) return;
+        
+        if (!data.products || data.products.length === 0) {
+          showAlert('warning', 'Nenhum produto encontrado');
+          tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhum produto disponível</td></tr>';
+          return;
+        }
+        
+        tableBody.innerHTML = '';
+        
+        data.products.forEach(product => {
+          const row = document.createElement('tr');          
+          let created_at = product.created_at || '';
+          if (created_at) {
+            const date = new Date(created_at);
+            created_at = date.toLocaleDateString();
+          }
+          
+          row.innerHTML = `
+            <td>${product.reference || '-'}</td>
+            <td>${product.name}</td>
+            <td>${product.ean || '-'}</td>
+            <td>${product.category || '-'}</td>
+            <td>${product.supplier || '-'}</td>
+            <td>${product.price || '0.00'}</td>
+            <td>${created_at}</td>
+          `;
+          
+          row.dataset.id = product.product_id;
+          row.style.cursor = 'pointer';
+          
+          row.addEventListener('click', function() {
+            showProductDetails(this.dataset.id);
+          });
+          
+          tableBody.appendChild(row);
+        });
+        
+        const productsCountBadge = document.querySelector('.badge.bg-primary');
+        if (productsCountBadge) {
+          productsCountBadge.textContent = data.total || data.products.length || 0;
+        }
+        
+        try {
+          setTimeout(() => {
+            if (window.$ && $.fn.DataTable) {
+              productsTable = $('#products-table').DataTable({
+                responsive: true,
+                destroy: true,
+                language: {
+                  search: "_INPUT_",
+                  searchPlaceholder: "Procurar produtos...",
+                  emptyTable: "Nenhum produto disponível",
+                  info: "Mostrando _START_ a _END_ de _TOTAL_ produtos",
+                  infoEmpty: "Mostrando 0 a 0 de 0 produtos",
+                  infoFiltered: "(filtrado de _MAX_ produtos no total)",
+                  lengthMenu: "Mostrar _MENU_ produtos",
+                  loadingRecords: "Carregando...",
+                  processing: "Processando...",
+                  zeroRecords: "Nenhum produto correspondente encontrado",
+                  paginate: {
+                    first: "Primeiro",
+                    last: "Último",
+                    next: "Próximo",
+                    previous: "Anterior"
+                  }
+                }
+              });
+              
+              console.log('DataTable inicializado com sucesso');
+            }
+          }, 100);
+          
+        } catch (error) {
+          console.error('Erro ao inicializar DataTable:', error);
+          showAlert('warning', 'Tabela carregada, mas sem funcionalidades avançadas');
+        }
+      })
+      .catch(error => {
+        console.error('Erro ao carregar produtos:', error);
+        showAlert('danger', `Erro ao carregar produtos: ${error.message}`);
+        const tableBody = document.querySelector('#products-table tbody');
+        if (tableBody) {
+          tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Erro ao carregar produtos: ${error.message}</td></tr>`;
+        }
+      });
+  }
+  
+  function showProductDetails(productId) {
+    const modal = document.getElementById('product-details-modal');
+    if (!modal) return;
+    
+    const modalBody = modal.querySelector('.modal-body');
+    if (!modalBody) return;
+    
+    modalBody.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div><p>Carregando detalhes...</p></div>';
+    
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+    
+    fetch(`/product-moloni/api/products/${productId}/`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (!data.success) {
+          throw new Error(data.message || 'Erro ao carregar detalhes do produto');
+        }
+        
+        modalBody.innerHTML = `
+          <div class="row">
+            <div class="col-md-6">
+              <h5>Informações Básicas</h5>
+              <p><strong>ID:</strong> ${data.product.product_id}</p>
+              <p><strong>Referência:</strong> ${data.product.reference || '-'}</p>
+              <p><strong>Nome:</strong> ${data.product.name}</p>
+              <p><strong>Código de Barras:</strong> ${data.product.ean || '-'}</p>
+              <p><strong>Preço:</strong> ${data.product.price || '0.00'} €</p>
+            </div>
+            <div class="col-md-6">
+              <h5>Informações Adicionais</h5>
+              <p><strong>Categoria:</strong> ${data.product.category || '-'}</p>
+              <p><strong>Fornecedor:</strong> ${data.product.supplier || '-'}</p>
+              <p><strong>Tem Estoque:</strong> ${data.product.has_stock ? 'Sim' : 'Não'}</p>
+              <p><strong>Estoque:</strong> ${data.product.stock || '0'}</p>
+              <p><strong>Tipo:</strong> ${data.product.type || '-'}</p>
+            </div>
+          </div>
+          ${data.product.summary ? `
+          <div class="row mt-3">
+            <div class="col-12">
+              <h6>Descrição</h6>
+              <p>${data.product.summary}</p>
+            </div>
+          </div>` : ''}
+        `;
+      })
+      .catch(error => {
+        console.error('Erro ao carregar detalhes do produto:', error);
+        modalBody.innerHTML = `<div class="alert alert-danger">Erro ao carregar detalhes: ${error.message}</div>`;
+      });
+  }
+  
+  function showAlert(type, message) {
+    const alertContainer = document.getElementById('sync-alert');
+    if (!alertContainer) {
+      console.warn('Container de alertas não encontrado');
+      return;
+    }
+    
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    alertContainer.innerHTML = '';
+    alertContainer.appendChild(alertDiv);
+    alertContainer.style.display = 'block';
+    
+    setTimeout(() => {
+      if (alertDiv.parentNode) {
+        alertDiv.classList.remove('show');
+        setTimeout(() => {
+          if (alertDiv.parentNode) {
+            alertDiv.remove();
+            if (alertContainer.children.length === 0) {
+              alertContainer.style.display = 'none';
+            }
+          }
+        }, 150);
+      }
+    }, 5000);
+  }
+  
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+      console.log('Usuário voltou à aba, verificando necessidade de sync...');
+      setTimeout(() => {
+        checkAndStartAutoSync();
+      }, 2000);
+    }
+  });
+</script>
+{% endblock page_js %}

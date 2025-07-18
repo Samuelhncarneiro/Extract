@@ -1,0 +1,16 @@
+{
+  "menu": [
+    {
+      "url": "index",
+      "icon": "menu-icon tf-icons bx bx-home-circle",
+      "name": "Dashboard",
+      "slug": "index"
+    },
+    {
+      "url": "page-2",
+      "icon": "menu-icon tf-icons bx bx-detail",
+      "name": "Aitigos",
+      "slug": "aitigos"
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{% extends layout_path %}
+
+{% load static %}
+{% load i18n %}
+
+{% block title %}Aitigos{% endblock %}
+
+{% block vendor_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'vendor/libs/nouislider/nouislider.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/swiper/swiper.css' %}" />
+{% endblock vendor_css %}
+
+{% block vendor_js %}
+{{ block.super }}
+<script src="{% static 'vendor/libs/nouislider/nouislider.js' %}"></script>
+<script src="{% static 'vendor/libs/swiper/swiper.js' %}"></script>
+{% endblock vendor_js %}
+
+{% block page_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static  'vendor/css/pages/front-page-landing.css' %}">
+{% endblock page_css %}
+
+{% block page_js %}
+{{ block.super }}
+<script src="{% static 'js/front-page-landing.js' %}"></script>
+{% endblock page_js %}
+
+
+{% block content %}
+<div data-bs-spy="scroll" class="scrollspy-example">
+  <!-- Hero: Start -->
+  <section id="hero-animation">
+    <div id="home" class="section-py landing-hero position-relative">
+      <img src="{% static 'img/front-pages/backgrounds/background_landing_2.png' %}" alt="hero background" class="position-absolute top-0 start-50 translate-middle-x object-fit-cover w-100 h-100" data-speed="1" />
+      <div class="container">
+        <div class="hero-text-box text-center position-relative">
+          <h1 class="text-primary hero-title display-6 fw-extrabold">
+            <span class="app-brand-logo-footer-front demo">
+              {% include 'partials/logo.html' with withbg="#3a7ca5" %}
+            </span>
+          </h1>
+          <h2 class="hero-sub-title h6 mb-6">
+            O Aitigos é uma plataforma inteligente para controlo e automatização de stocks, com integração simples com o Moloni e o Shopify. Facilita a gestão de inventário e a execução de tarefas repetitivas, promovendo uma operação mais organizada e eficiente.
+          </h2>
+          <div class="landing-hero-btn d-inline-block position-relative">
+            <span class="hero-btn-item position-absolute d-none d-md-flex fw-medium" style="color: black;">
+              Simplifique a gestão<br> e tome decisões inteligentes <br>com o Aitigos.
+              <img src="{% static 'img/front-pages/icons/Join-community-arrow-black.png' %}" alt="Join community arrow" class="scaleX-n1-rtl" />
+            </span>
+
+            <a href="{% url 'landing-page' %}#landingPricing" class="btn btn-primary btn-lg">Obtenha acesso antecipado</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </section>
+  <!-- Hero: End -->
+
+<!-- Funcionalidades Úteis: Início -->
+<section id="categories" class="section-py landing-features">
+  <div class="container">
+    <div class="text-center mb-4">
+      <span class="badge bg-label-primary">Funcionalidades Úteis</span>
+    </div>
+    <h4 class="text-center mb-1">
+      <span class="position-relative fw-extrabold z-1">Tudo o que precisa
+
+      </span>
+      para otimizar a gestão do seu estoque e maximizar seus resultados
+    </h4>
+    <p class="text-center mb-12">Oferecemos soluções inovadoras para transformar desafios em oportunidades de sucesso e crescimento sustentável.</p>
+    <div class="features-icon-wrapper row gx-0 gy-6 g-sm-12">
+      <div class="col-lg-4 col-sm-6 text-center features-icon-box">
+        <div class="text-center mb-4">
+          <i class="bx bxs-layer fs-1" style='color:#3a7ca5'></i> <!-- Ícone de Gestão de Stock Integrada -->
+        </div>
+        <h5 class="mb-2">Gestão de Stock Integrada</h5>
+        <p class="features-icon-description">Controle o inventário de forma centralizada e acompanhe a disponibilidade dos artigos em tempo real.</p>
+      </div>
+      <div class="col-lg-4 col-sm-6 text-center features-icon-box">
+        <div class="text-center mb-4">
+          <i class='bx bx-bulb fs-1' style='color:#3a7ca5'></i> <!-- Ícone de Recomendações Personalizadas -->
+        </div>
+        <h5 class="mb-2">Recomendações Personalizadas</h5>
+        <p class="features-icon-description">Receba recomendações automáticas para otimizar a gestão do stock e melhorar a rotatividade dos produtos.</p>
+      </div>
+      <div class="col-lg-4 col-sm-6 text-center features-icon-box">
+        <div class="text-center mb-4">
+          <i class="bx bx-line-chart fs-1" style='color:#3a7ca5'></i> <!-- Ícone de Insights Detalhados -->
+        </div>
+        <h5 class="mb-2">Insights Detalhados</h5>
+        <p class="features-icon-description">Analise padrões de vendas e tendências para tomar decisões mais inteligentes sobre o inventário.</p>
+      </div>
+      <div class="col-lg-4 col-sm-6 text-center features-icon-box">
+        <div class="text-center mb-4">
+          <i class="bx bx-trending-up fs-1" style='color:#3a7ca5'></i> <!-- Ícone de Previsão de Necessidades -->
+        </div>
+        <h5 class="mb-2">Previsão de Necessidades</h5>
+        <p class="features-icon-description">Utilize inteligência artificial para prever as necessidades de reposição com base em padrões de vendas.</p>
+      </div>
+      <div class="col-lg-4 col-sm-6 text-center features-icon-box">
+        <div class="text-center mb-4">
+          <i class="bx bxs-bell-ring fs-1" style='color:#3a7ca5'></i> <!-- Ícone de Notificações e Alertas -->
+        </div>
+        <h5 class="mb-2">Notificações e Alertas</h5>
+        <p class="features-icon-description">Seja notificado sobre níveis baixos de stock e oportunidades de reposição, mantendo a operação fluida.</p>
+      </div>
+      <div class="col-lg-4 col-sm-6 text-center features-icon-box">
+        <div class="text-center mb-4">
+          <i class="bx bx-cog fs-1" style='color:#3a7ca5'></i> <!-- Ícone de Automação Inteligente -->
+        </div>
+        <h5 class="mb-2">Automação Inteligente</h5>
+        <p class="features-icon-description">Automatize processos repetitivos, como a atualização de stock e reposição de produtos, para aumentar a eficiência.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+<!-- Funcionalidades Úteis: Fim -->
+
+</div>
+{% endblock content %}

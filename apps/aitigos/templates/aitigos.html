@@ -1,0 +1,2565 @@
+<!-- apps/aitigos/templates/aitigos.html-->
+{% extends layout_path %}
+
+{% load static %}
+{% load i18n %}
+
+{% block title %}Extração de Documentos com IA{% endblock %}
+
+{% block vendor_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-bs5/datatables.bootstrap5.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.css' %}" />
+{% endblock vendor_css %}
+
+{% block vendor_js %}
+{{ block.super }}
+<script src="{% static 'vendor/libs/datatables-bs5/datatables-bootstrap5.js' %}"></script>
+<script src="{% static 'vendor/libs/moment/moment.js' %}"></script>
+
+{% endblock vendor_js %}
+
+{% block content %}
+<div class="container-xxl flex-grow-1 container-p-y">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="card-title">Extração de Documentos</h5>
+          <p class="card-subtitle">Faça upload de documentos PDF para extrair informações de produtos</p>
+        </div>
+        <div class="card-body">
+          <!-- Upload Form -->
+          <form id="uploadForm" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <div class="input-group">
+                  <input type="file" class="form-control" id="pdfFile" name="file" accept=".pdf" required>
+                  <button class="btn btn-primary" type="submit" id="uploadBtn">
+                    <i class="bx bx-upload me-1"></i> Enviar
+                  </button>
+                </div>
+                <small class="text-muted">Formatos aceitos: PDF</small>
+              </div>
+            </div>
+          </form>
+
+          <!-- Error alert -->
+          <div id="errorAlert" class="alert alert-danger d-none mb-3">
+            <div id="errorText"></div>
+          </div>
+          
+          <!-- Loading overlay -->
+          <div id="loadingOverlay" class="d-none">
+            <div class="text-center p-4">
+              <div class="spinner-border text-primary mb-3" role="status"></div>
+              <h5 id="loadingStatus">Processando documento...</h5>
+            </div>
+          </div>
+          <!-- Products Table - Responsive with Child Rows -->
+          <div id="productsContainer" class="d-none">
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <div class="input-group">
+                  <span class="input-group-text">Atualizar Coleção</span>
+                  <input type="text" class="form-control" id="updateBarcodePrefix" maxlength="2" pattern="[0-9]{2}" placeholder="Ex: 72">
+                  <button class="btn btn-outline-primary" type="button" id="updatePrefixBtn">
+                    <i class="bx bx-refresh me-1"></i> Aplicar
+                  </button>
+                </div>
+                <small class="text-muted">Atualiza os 2 primeiros dígitos de todos os códigos de barras(temporada)</small>
+              </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-md-6 d-flex align-items-center">
+                <span class="me-3">
+                  Fornecedor: <strong id="currentSupplier">{{ current_supplier|default:"–" }}</strong>
+                </span>
+                <span>
+                  Marcação Atual: <strong id="currentMarkupDisplay">{{ current_markup|default:"–" }}</strong>
+                </span>
+              </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <div class="input-group">
+                  <span class="input-group-text">Marcação</span>
+                  <button class="btn btn-outline-secondary" type="button" id="openMarkupModal">
+                    <i class="bx bx-slider me-1"></i> Alterar
+                  </button>
+                </div>
+                <small class="text-muted">Defina a marcação para recalcular preços de venda</small>
+              </div>
+            </div>
+            <div class="card-datatable table-responsive">
+              <table id="productsTable" class="datatables-products table border-top">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>MATERIAL CODE</th>
+                    <th>NOME</th>
+                    <th>COMPOSIÇÃO</th>
+                    <th>CATEGORIA</th>
+                    <th>SEXO</th>
+                    <th>MARCA</th>
+                    <th>FORNECEDOR</th>
+                    <th>DATA</th>
+                    <th>ARMAZÉM</th>
+                    <th>INTEGRADO</th>
+                    <th>AÇÕES</th>
+                  </tr>
+                </thead>
+                <tbody id="productsTableBody"></tbody>
+              </table>
+            </div>   
+            <!-- Botões de ação -->
+            <div class="row mt-4">
+              <div class="col-12 d-flex justify-content-end">
+                <button type="button" class="btn btn-secondary me-2" id="cancelBtn">
+                  <i class="bx bx-x me-1"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-primary me-2" id="previewMoloniBtn">
+                  <i class="bx bx-eye me-1"></i> Visualizar
+                </button>
+                <div class="btn-group me-2">
+                  <button type="button" class="btn btn-success me-2" id="sendToMoloniBtn">
+                    <i class="bx bx-check me-1"></i> Enviar para Moloni
+                  </button>
+                  <button type="button" class="btn btn-success me-2" id="sendToShopifyBtn">
+                    <i class="bx bx-shopping-bag me-1"></i> Enviar para Shopify
+                  </button>
+                  <button type="button" class="btn btn-success" id="sendToBothBtn">
+                    <i class="bx bx-transfer me-1"></i> Enviar para Ambos
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Alteração do markup e supplier -->
+<div class="modal fade" id="markupModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Alterar Fornecedor e Marcação</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="supplierSelect" class="form-label">Fornecedor:</label>
+          <select id="supplierSelect" class="form-select">
+          </select>
+        </div>
+        
+        <hr class="my-3">
+        
+        <div class="mb-3">
+          <label for="markupSelect" class="form-label">Marcação do Fornecedor:</label>
+          <select id="markupSelect" class="form-select">
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label for="newMarkup" class="form-label">Ou insira nova marcação:</label>
+          <input type="number" step="0.01" min="0" id="newMarkup" class="form-control" placeholder="Ex: 2.5">
+        </div>
+        
+        <div class="alert alert-info d-none" id="changesSummary">
+          <h6 class="alert-heading">Resumo das Alterações:</h6>
+          <div id="changesList"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="applyChangesBtn">Aplicar Alterações</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Visualização para Moloni -->
+<div class="modal fade" id="previewMoloniModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Visualizar Produtos para Moloni</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Confirme os <span id="previewProductsCount" class="fw-bold"></span> produtos que serão enviados para o Moloni:</p>
+        <div class="table-responsive">
+          <table class="table table-bordered" id="previewTable">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Referência</th>
+                <th>Código de Barras</th>
+                <th>Categoria</th>
+                <th>Fornecedor</th>
+                <th>Preço Venda</th>
+                <th>Preço Custo</th>
+                <th>Stock</th>
+                <th>Tamanho</th>
+                <th>Cor</th>
+              </tr>
+            </thead>
+            <tbody id="previewTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="confirmPreviewSendBtn">
+          <i class="bx bx-send me-1"></i> Enviar para Moloni
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="previewShopifyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Visualizar Produtos para Shopify</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Confirme os <span id="previewShopifyProductsCount" class="fw-bold"></span> produtos e variantes que serão enviados para o Shopify:</p>
+        <div class="table-responsive">
+          <table class="table table-bordered" id="previewShopifyTable">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Referência</th>
+                <th>Código de Barras</th>
+                <th>Categoria</th>
+                <th>Marca</th>
+                <th>Preço Venda</th>
+                <th>Preço Custo</th>
+                <th>Stock</th>
+                <th>Tamanho</th>
+                <th>Cor</th>
+              </tr>
+            </thead>
+            <tbody id="previewShopifyTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="confirmShopifySendBtn">
+          <i class="bx bx-send me-1"></i> Enviar para Shopify
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para confirmação de envio para ambas plataformas -->
+<div class="modal fade" id="confirmBothModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Sincronizar com Ambas Plataformas</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Você está prestes a enviar os produtos para o Moloni e o Shopify simultaneamente.</p>
+        <p>Esta operação pode levar algum tempo. Deseja continuar?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="confirmBothSendBtn">
+          <i class="bx bx-send me-1"></i> Sim, Enviar para Ambos
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Confirmação para Cancelar -->
+<div class="modal fade" id="confirmCancelModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Cancelar Processamento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja cancelar o processamento atual?</p>
+        <p class="text-danger">Os dados serão descartados e você precisará enviar o documento novamente.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="btn btn-danger" id="confirmCancelBtn">
+          <i class="bx bx-x me-1"></i> Sim, Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmação de Exclusão Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirmar Exclusão</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja excluir este produto?</p>
+        <p class="fw-bold" id="deleteProductName"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Excluir</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Aviso durante Upload -->
+<div class="modal fade" id="uploadWarningModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body text-center p-5">
+        <div class="mb-4">
+          <div class="spinner-border text-primary" style="width: 4rem; height: 4rem;" role="status">
+            <span class="visually-hidden">Carregando...</span>
+          </div>
+        </div>
+        <h4 class="text-primary mb-3">
+          <i class="bx bx-upload me-2"></i>Processamento em Andamento
+        </h4>
+        
+        <div class="alert alert-warning mb-4">
+          <h5 class="alert-heading">
+            <i class="bx bx-info-circle me-2"></i>Por favor, não saia da página
+          </h5>
+          <p class="mb-0">
+            Este processo pode levar alguns minutos.
+            <br><strong>Não feche o navegador nem navegue para outra página.</strong>
+          </p>
+        </div>
+        <p class="text-muted mb-0" id="uploadStatusText">
+          Enviando documento para processamento...
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmação para Excluir Variante -->
+<div class="modal fade" id="deleteVariantConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Excluir Variante</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja excluir esta variante?</p>
+        <p class="fw-bold" id="variantDescription"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteVariantBtn">Excluir</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Comparação de Produtos -->
+<div class="modal fade" id="productComparisonModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bx bx-search-alt me-2"></i>
+          Verificação de Produtos Existentes
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Loading State -->
+        <div id="comparisonLoading" class="text-center p-4">
+          <div class="spinner-border text-primary mb-3" role="status"></div>
+          <h5>Verificando produtos existentes...</h5>
+          <p class="text-muted">Comparando com a base de dados da plataforma</p>
+        </div>
+        
+        <!-- Comparison Results -->
+        <div id="comparisonResults" class="d-none">
+          
+          <!-- Summary Cards -->
+          <div class="row mb-4">
+            <div class="col-md-3">
+              <div class="card text-center border-primary">
+                <div class="card-body">
+                  <i class="bx bx-package bx-lg text-primary mb-2"></i>
+                  <h4 class="text-primary mb-1" id="totalNewProducts">-</h4>
+                  <small class="text-muted">Produtos Novos</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center border-warning">
+                <div class="card-body">
+                  <i class="bx bx-error bx-lg text-warning mb-2"></i>
+                  <h4 class="text-warning mb-1" id="totalConflicts">-</h4>
+                  <small class="text-muted">Com Conflitos</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center border-success">
+                <div class="card-body">
+                  <i class="bx bx-check-shield bx-lg text-success mb-2"></i>
+                  <h4 class="text-success mb-1" id="totalSafe">-</h4>
+                  <small class="text-muted">Seguros</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card text-center border-info">
+                <div class="card-body">
+                  <i class="bx bx-layer bx-lg text-info mb-2"></i>
+                  <h4 class="text-info mb-1" id="totalVariants">-</h4>
+                  <small class="text-muted">Variantes Total</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Alert Messages -->
+          <div id="noConflictsAlert" class="alert alert-success d-none">
+            <h4 class="alert-heading">
+              <i class="bx bx-check-circle me-2"></i>Nenhum Conflito Detectado!
+            </h4>
+            <p class="mb-0">Todos os produtos podem ser inseridos com segurança na plataforma.</p>
+          </div>
+          
+          <div id="conflictsAlert" class="alert alert-warning d-none">
+            <h4 class="alert-heading">
+              <i class="bx bx-error-circle me-2"></i>Conflitos Detectados
+            </h4>
+            <p class="mb-0">Alguns produtos já existem na plataforma. Reveja os conflitos abaixo antes de continuar.</p>
+          </div>
+          
+          <!-- Tabs for Safe and Conflict Products -->
+          <ul class="nav nav-tabs" id="comparisonTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="safe-tab" data-bs-toggle="tab" data-bs-target="#safe-products" 
+                      type="button" role="tab">
+                <i class="bx bx-check-shield me-1"></i>
+                Produtos Seguros (<span id="safeCount">0</span>)
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="conflicts-tab" data-bs-toggle="tab" data-bs-target="#conflict-products" 
+                      type="button" role="tab">
+                <i class="bx bx-error me-1"></i>
+                Conflitos (<span id="conflictCount">0</span>)
+              </button>
+            </li>
+          </ul>
+          
+          <div class="tab-content mt-3" id="comparisonTabsContent">
+            
+            <!-- Safe Products Tab -->
+            <div class="tab-pane fade show active" id="safe-products" role="tabpanel">
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>
+                        <input type="checkbox" class="form-check-input" id="selectAllSafe" checked>
+                      </th>
+                      <th>Produto</th>
+                      <th>Categoria</th>
+                      <th>Fornecedor</th>
+                      <th>Variantes</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="safeProductsTable">
+                    <!-- Safe products will be populated here -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <!-- Conflict Products Tab -->
+            <div class="tab-pane fade" id="conflict-products" role="tabpanel">
+              <div id="conflictProductsList">
+                <!-- Conflict products will be populated here -->
+              </div>
+            </div>
+            
+          </div>
+          
+        </div>
+        
+        <!-- Error State -->
+        <div id="comparisonError" class="alert alert-danger d-none">
+          <h4 class="alert-heading">Erro na Verificação</h4>
+          <p class="mb-0" id="comparisonErrorText"></p>
+        </div>
+        
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="bx bx-x me-1"></i>Cancelar
+        </button>
+        
+        <div id="comparisonActions" class="d-none">
+          <button type="button" class="btn btn-warning me-2" id="insertAllBtn">
+            <i class="bx bx-upload me-1"></i>Inserir Todos (Ignorar Conflitos)
+          </button>
+          <button type="button" class="btn btn-success" id="insertSafeBtn">
+            <i class="bx bx-check-shield me-1"></i>Inserir Apenas Seguros
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Confirmação de Inserção -->
+<div class="modal fade" id="insertConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirmar Inserção</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="insertionSummary"></div>
+        
+        <div class="alert alert-info">
+          <h6><i class="bx bx-info-circle me-2"></i>Informações Importantes:</h6>
+          <ul class="mb-0">
+            <li>Esta ação não pode ser desfeita automaticamente</li>
+            <li>Produtos com conflitos podem substituir dados existentes</li>
+            <li>Recomendamos fazer backup antes de continuar</li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="confirmInsertBtn">
+          <i class="bx bx-check me-1"></i>Confirmar Inserção
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+
+{% block page_css %}
+{{ block.super }}
+{% endblock %}
+
+{% block page_js %}
+{{ block.super }}
+{{ suppliers|json_script:"suppliers-data" }}
+{{ supplier_markups|json_script:"markups-data" }}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // DOM elements
+  const uploadForm = document.getElementById('uploadForm');
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  const loadingStatus = document.getElementById('loadingStatus');
+  const errorAlert = document.getElementById('errorAlert');
+  const errorText = document.getElementById('errorText');
+  const productsContainer = document.getElementById('productsContainer');
+  const productsTable = document.getElementById('productsTable');
+  
+  // Delete confirmation modal
+  const deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+  const deleteProductName = document.getElementById('deleteProductName');
+  const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+  
+  // Delete variant confirmation modal
+  const deleteVariantConfirmModal = new bootstrap.Modal(document.getElementById('deleteVariantConfirmModal'));
+  const confirmDeleteVariantBtn = document.getElementById('confirmDeleteVariantBtn');
+  const variantDescription = document.getElementById('variantDescription');
+  let variantToDelete = { productIndex: null, variantIndex: null };
+
+  // Botões e modais para visualização e envio ao Moloni
+  const previewMoloniBtn = document.getElementById('previewMoloniBtn');
+  const sendToMoloniBtn = document.getElementById('sendToMoloniBtn');
+  const cancelBtn = document.getElementById('cancelBtn');
+  const previewMoloniModal = new bootstrap.Modal(document.getElementById('previewMoloniModal'));
+  const confirmCancelModal = new bootstrap.Modal(document.getElementById('confirmCancelModal'));
+  const previewTableBody = document.getElementById('previewTableBody');
+  const previewProductsCount = document.getElementById('previewProductsCount');
+  const confirmPreviewSendBtn = document.getElementById('confirmPreviewSendBtn');
+  const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+  
+  // Botão de atualização de prefixo
+  const updatePrefixBtn = document.getElementById('updatePrefixBtn');
+  const updateBarcodePrefix = document.getElementById('updateBarcodePrefix');
+  
+  const sendToShopifyBtn = document.getElementById('sendToShopifyBtn');
+  const sendToBothBtn = document.getElementById('sendToBothBtn');
+  const previewShopifyModal = new bootstrap.Modal(document.getElementById('previewShopifyModal'));
+  const confirmBothModal = new bootstrap.Modal(document.getElementById('confirmBothModal'));
+  const previewShopifyTableBody = document.getElementById('previewShopifyTableBody');
+  const previewShopifyProductsCount = document.getElementById('previewShopifyProductsCount');
+  const confirmShopifySendBtn = document.getElementById('confirmShopifySendBtn');
+  const confirmBothSendBtn = document.getElementById('confirmBothSendBtn');
+
+  const uploadWarningModal = new bootstrap.Modal(document.getElementById('uploadWarningModal'));
+  const uploadStatusText = document.getElementById('uploadStatusText');
+
+  function preventPageLeave(e) {
+    e.preventDefault();
+    e.returnValue = 'O processamento do documento está em andamento. Tem certeza que deseja sair?';
+    return e.returnValue;
+  }
+
+  const STORAGE_KEY = 'aitigos_products_data';
+
+  let productsData = [];
+  let productToDeleteIndex = null;
+  let dt;
+  
+  function redirectToEditPage(index) {
+    saveToSessionStorage();
+    sessionStorage.setItem('aitigos_current_product_index', index);
+    window.location.href = '{% url "product_edit" %}?index=' + index;
+  }
+
+  function setupMainTableEventListeners() {
+    // Remover listeners anteriores
+    $('#productsTable').off('click', '.edit-product');
+    $('#productsTable').off('click', '.delete-product');
+    
+    // Usar delegação de eventos no container da tabela
+    $('#productsTable').on('click', '.edit-product', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const index = $(this).data('index');
+      redirectToEditPage(index);
+    });
+    
+    $('#productsTable').on('click', '.delete-product', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const index = $(this).data('index');
+      openDeleteConfirmModal(index);
+    });
+  }
+
+  function openDeleteConfirmModal(index) {
+    productToDeleteIndex = index;
+    
+    if (index >= 0 && index < productsData.length) {
+      const productName = productsData[index].name || productsData[index].material_code || 'Produto sem nome';
+      deleteProductName.textContent = productName;
+    } else {
+      deleteProductName.textContent = 'Produto';
+    }
+    
+    deleteConfirmModal.show();
+  }
+
+  function closeDeleteConfirmModal() {
+    deleteConfirmModal.hide();
+    productToDeleteIndex = null;
+  }
+
+  function checkSessionStorage() {
+    try {
+      const storedData = sessionStorage.getItem(STORAGE_KEY);
+      if (storedData) {
+        const parsedData = JSON.parse(storedData);
+        if (parsedData && Array.isArray(parsedData) && parsedData.length > 0) {
+          productsData = parsedData;
+          initializeDataTable();
+          productsContainer.classList.remove('d-none');
+          
+          return true;
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao recuperar dados da sessão:', error);
+    }
+    
+    return false;
+  }
+
+  function saveToSessionStorage() {
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(productsData));
+    } catch (error) {
+      console.error('Erro ao salvar na sessão:', error);
+    }
+  }
+  
+  function clearSessionStorage() {
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.error('Erro ao limpar sessão:', error);
+    }
+  }
+  
+  function updateUploadStatus(message) {
+    if (uploadStatusText) {
+      uploadStatusText.textContent = message;
+    }
+  }
+  uploadForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    errorAlert.classList.add('d-none');
+    productsContainer.classList.add('d-none');
+    
+    uploadWarningModal.show();
+    uploadStatusText.textContent = 'Enviando documento para processamento...';
+    
+    window.addEventListener('beforeunload', preventPageLeave);
+    
+    try {
+      const formData = new FormData(uploadForm);
+      
+      uploadStatusText.textContent = 'Processando documento com IA...';
+      
+      const response = await fetch('', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+      });
+      
+      uploadStatusText.textContent = 'Finalizando processamento...';
+      
+      const data = await response.json();
+      
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Erro ao processar documento');
+      }
+      
+      productsData = data.products || [];
+      
+      saveToSessionStorage();
+      updateCurrentSupplierAndMarkup();
+      initializeDataTable();
+      
+      uploadWarningModal.hide();
+      productsContainer.classList.remove('d-none');
+      
+      showMessage(`Documento processado com sucesso! ${productsData.length} produtos encontrados.`, 'success');
+      
+    } catch (error) {
+      uploadWarningModal.hide();
+      showMessage(error.message, 'error');
+    } finally {
+      window.removeEventListener('beforeunload', preventPageLeave);
+    }
+  });
+
+  function initializeDataTable() {
+    if ($.fn.DataTable.isDataTable('#productsTable')) {
+      $('#productsTable').DataTable().destroy();
+    }
+    
+    $('#productsTableBody').empty();
+    
+    // Format data for DataTable
+    const tableData = productsData.map((product, index) => {
+      return {
+        DT_RowId: `product-${index}`,
+        index: index,
+        material_code: product.material_code || '',
+        name: product.name || '',
+        composition: product.composition || '',
+        category: product.category || '',
+        gender: product.gender || '',
+        brand: product.brand || '',
+        supplier: product.supplier || '',
+        date: product.date || '',
+        warehouse: product.warehouse || '1',
+        integrated: product.integrated || '0',
+        details: product.details || []
+      };
+    });
+    
+    // Initialize DataTable
+    dt = $('#productsTable').DataTable({
+      data: tableData,
+      columns: [
+        {
+          className: 'dt-control',
+          orderable: false,
+          data: null,
+          defaultContent: ''
+        },
+        { data: 'material_code' },
+        { data: 'name' },
+        { data: 'composition' },
+        { data: 'category' },
+        { data: 'gender' },
+        { data: 'brand' },
+        { data: 'supplier' },
+        { data: 'date' },
+        { data: 'warehouse' },
+        { data: 'integrated' },
+        {
+          data: null,
+          orderable: false,
+          render: function(data, type, row) {
+            return `
+              <div class="d-inline-block dropdown">
+                <button class="btn btn-sm btn-icon btn-text-secondary rounded-pill btn-icon dropdown-toggle hide-arrow" 
+                        data-bs-toggle="dropdown" 
+                        aria-expanded="false">
+                  <i class="bx bx-dots-vertical-rounded"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end">
+                  <a href="javascript:void(0);" class="dropdown-item edit-product" data-index="${row.index}">
+                    <i class="bx bx-edit-alt me-1"></i> Editar
+                  </a>
+                  <a href="javascript:void(0);" class="dropdown-item delete-product" data-index="${row.index}">
+                    <i class="bx bx-trash me-1"></i> Excluir
+                  </a>
+                </div>
+              </div>
+            `;
+          }
+        }
+      ],
+      dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 d-flex justify-content-center justify-content-md-end mt-n6 mt-md-0"f>><"table-responsive"t><"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+      language: {
+        paginate: {
+          next: '<i class="bx bx-chevron-right bx-18px"></i>',
+          previous: '<i class="bx bx-chevron-left bx-18px"></i>'
+        },
+        search: 'Pesquisar:',
+        lengthMenu: 'Mostrar _MENU_ registros',
+        info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
+        infoEmpty: 'Mostrando 0 registros',
+        infoFiltered: '(filtrado de _MAX_ registros no total)',
+        zeroRecords: 'Nenhum registro encontrado'
+      },
+      responsive: true,
+      order: [[1, 'asc']],
+      drawCallback: function() {
+        initializeDropdowns();
+      }
+    });
+    
+    // Set up event listener for child rows
+    $('#productsTable tbody').off('click', 'td.dt-control').on('click', 'td.dt-control', function() {
+      const tr = $(this).closest('tr');
+      const row = dt.row(tr);
+      
+      if (row.child.isShown()) {
+        row.child.hide();
+        tr.removeClass('shown');
+      } else {
+        row.child(formatChildRow(row.data())).show();
+        tr.addClass('shown');
+        setupChildRowEventListeners(row.data());
+      }
+    });
+    
+    // Set up event listeners for the main table
+    setupMainTableEventListeners();
+    
+    // Inicializar dropdowns após a criação da tabela
+    setTimeout(() => {
+      initializeDropdowns();
+    }, 100);
+
+    if (productsData.length > 0) {
+      updateCurrentSupplierAndMarkup();
+    }
+  }
+
+  function initializeDropdowns() {
+    // Destruir dropdowns existentes para evitar conflitos
+    $('#productsTable .dropdown-toggle').each(function() {
+      if ($(this).data('bs.dropdown')) {
+        bootstrap.Dropdown.getInstance(this)?.dispose();
+      }
+    });
+    
+    // Inicializar novos dropdowns
+    $('#productsTable .dropdown-toggle').each(function() {
+      new bootstrap.Dropdown(this);
+    });
+  }
+
+  const suppliersList   = JSON.parse(document.getElementById('suppliers-data').textContent);
+  const markupsByCode   = JSON.parse(document.getElementById('markups-data').textContent);
+  let currentSupplierCode = null;
+  let originalSupplierCode = null;
+  let selectedMarkup = null;
+  let newSupplierName = null;
+
+  document.getElementById('openMarkupModal').addEventListener('click', () => {
+    const currentSupplierName = productsData[0]?.supplier;
+    
+    // Preencher dropdown de fornecedores
+    const supplierSelect = document.getElementById('supplierSelect');
+    supplierSelect.innerHTML = suppliersList
+      .map(s => `
+        <option value="${s.code}" ${s.name === currentSupplierName ? 'selected' : ''}>
+          ${s.name}
+        </option>
+      `).join('');
+    
+    // Encontrar o código do fornecedor atual
+    const supObj = suppliersList.find(s => s.name === currentSupplierName);
+    if (supObj) {
+      currentSupplierCode = supObj.code;
+      originalSupplierCode = supObj.code;
+      
+      // Carregar markups do fornecedor atual
+      loadMarkupsForSupplier(currentSupplierCode);
+    }
+    
+    // Limpar o resumo de alterações
+    document.getElementById('changesSummary').classList.add('d-none');
+    document.getElementById('newMarkup').value = '';
+    
+    // Abrir o modal
+    new bootstrap.Modal(document.getElementById('markupModal')).show();
+  });
+
+  function loadMarkupsForSupplier(supplierCode) {
+    const markupSelect = document.getElementById('markupSelect');
+    const markups = markupsByCode[supplierCode] || [];
+    
+    if (markups.length === 0) {
+      markupSelect.innerHTML = '<option value="">Nenhuma marcação disponível</option>';
+      markupSelect.disabled = true;
+      return;
+    }
+    
+    markupSelect.disabled = false;
+    markupSelect.innerHTML = markups
+      .map(m => `
+        <option value="${m.markup}" ${m.is_active ? 'selected' : ''}>
+          ${m.markup} (${m.created_at})${m.is_active ? ' - Ativa' : ''}
+        </option>
+      `).join('');
+  }
+
+  // Event listener para mudança de fornecedor
+  document.getElementById('supplierSelect').addEventListener('change', function() {
+    currentSupplierCode = this.value;
+    loadMarkupsForSupplier(currentSupplierCode);
+    updateChangesSummary();
+  });
+
+  // Event listener para mudança de markup
+  document.getElementById('markupSelect').addEventListener('change', updateChangesSummary);
+  document.getElementById('newMarkup').addEventListener('input', updateChangesSummary);
+
+  // Função para atualizar o resumo de alterações
+  function updateChangesSummary() {
+    const summaryDiv = document.getElementById('changesSummary');
+    const changesList = document.getElementById('changesList');
+    const changes = [];
+    
+    // Verificar mudança de fornecedor
+    if (currentSupplierCode !== originalSupplierCode) {
+      const newSupplier = suppliersList.find(s => s.code === currentSupplierCode);
+      const oldSupplier = suppliersList.find(s => s.code === originalSupplierCode);
+      changes.push(`<li>Fornecedor: <strong>${oldSupplier?.name || 'N/A'}</strong> → <strong>${newSupplier?.name || 'N/A'}</strong></li>`);
+    }
+    
+    // Verificar mudança de markup
+    const newMarkupValue = document.getElementById('newMarkup').value;
+    const selectedMarkupValue = document.getElementById('markupSelect').value;
+    const markupToUse = newMarkupValue || selectedMarkupValue;
+    
+    if (markupToUse) {
+      const currentMarkups = markupsByCode[originalSupplierCode] || [];
+      const activeMarkup = currentMarkups.find(m => m.is_active);
+      if (!activeMarkup || activeMarkup.markup != markupToUse) {
+        changes.push(`<li>Marcação: <strong>${activeMarkup?.markup || 'N/A'}</strong> → <strong>${markupToUse}</strong></li>`);
+      }
+    }
+    
+    // Mostrar ou esconder o resumo
+    if (changes.length > 0) {
+      changesList.innerHTML = '<ul class="mb-0">' + changes.join('') + '</ul>';
+      summaryDiv.classList.remove('d-none');
+    } else {
+      summaryDiv.classList.add('d-none');
+    }
+  }
+  // Função para aplicar as alterações
+  document.getElementById('applyChangesBtn').addEventListener('click', async () => {
+    const newSupplierCode = document.getElementById('supplierSelect').value;
+    const newSupplier = suppliersList.find(s => s.code === newSupplierCode);
+    const newMarkupValue = parseFloat(document.getElementById('newMarkup').value) || parseFloat(document.getElementById('markupSelect').value);
+    
+    if (!newSupplierCode) {
+      return alert('Por favor, selecione um fornecedor.');
+    }
+    
+    if (isNaN(newMarkupValue) || newMarkupValue <= 0) {
+      return alert('Por favor, escolha ou insira um valor de marcação válido.');
+    }
+    
+    try {
+      // Mostrar loading
+      const btn = document.getElementById('applyChangesBtn');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Aplicando...';
+      
+      // Preparar dados para envio
+      const requestData = {
+        action: 'update_supplier_and_markup',
+        supplierCode: newSupplierCode,
+        markup: newMarkupValue,
+        products: productsData
+      };
+      
+      // Se o fornecedor mudou, adicionar flag
+      if (newSupplierCode !== originalSupplierCode) {
+        requestData.changeSupplier = true;
+        const sup = suppliersList.find(s => s.code === newSupplierCode);
+        newSupplierName = sup?.name;
+        requestData.newSupplierName = newSupplierName;
+      }
+      
+      const response = await fetch('', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok || result.error) {
+        throw new Error(result.error || 'Falha ao aplicar alterações.');
+      }
+      
+      // Atualizar dados locais
+      productsData = result.products;
+      saveToSessionStorage();
+      
+      // Atualizar display
+      document.getElementById('currentSupplier').textContent = result.supplier_name || newSupplier.name || '–';
+      document.getElementById('currentMarkupDisplay').textContent = result.active_markup || newMarkupValue;
+      
+      // Atualizar markups no cache local
+      if (result.active_markup) {
+        markupsByCode[newSupplierCode] = markupsByCode[newSupplierCode] || [];
+        markupsByCode[newSupplierCode].forEach(m => {
+          m.is_active = (m.markup == result.active_markup);
+        });
+        
+        // Se for um novo markup, adicionar à lista
+        if (!markupsByCode[newSupplierCode].some(m => m.markup == result.active_markup)) {
+          markupsByCode[newSupplierCode].push({
+            markup: result.active_markup,
+            is_active: true,
+            created_at: new Date().toISOString().slice(0, 16).replace('T', ' ')
+          });
+        }
+      }
+      
+      // Fechar modal
+      bootstrap.Modal.getInstance(document.getElementById('markupModal')).hide();
+      
+      // Recarregar a tabela
+      initializeDataTable();
+      updateCurrentSupplierAndMarkup();
+      
+      // Mostrar mensagem de sucesso
+      showMessage(result.message || 'Alterações aplicadas com sucesso!', 'success');
+      
+      // Recarregar a página após um breve delay para garantir que tudo seja atualizado
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+      
+    } catch (error) {
+      alert('Erro: ' + error.message);
+    } finally {
+      // Restaurar botão
+      const btn = document.getElementById('applyChangesBtn');
+      btn.disabled = false;
+      btn.innerHTML = 'Aplicar Alterações';
+    }
+  });
+
+  // Resetar o modal quando fechar
+  document.getElementById('markupModal').addEventListener('hidden.bs.modal', () => {
+    currentSupplierCode = null;
+    originalSupplierCode = null;
+    selectedMarkup = null;
+    document.getElementById('changesSummary').classList.add('d-none');
+  });
+
+  function updateCurrentSupplierAndMarkup() {
+    const supplierName = productsData[0]?.supplier || '–';
+    document.getElementById('currentSupplier').textContent = supplierName;
+
+    const supObj = suppliersList.find(s => s.name === supplierName);
+    if (!supObj) {
+      document.getElementById('currentMarkupDisplay').textContent = '–';
+      return;
+    }
+    const supplierCode = supObj.code;
+
+    const markups = markupsByCode[supplierCode] || [];
+    const ativo = markups.find(m => m.is_active) || markups[0] || {};
+    document.getElementById('currentMarkupDisplay').textContent = ativo.markup ?? '–';
+  }
+
+  document.getElementById('applyChangesBtn').addEventListener('click', async () => {
+    const sel = document.getElementById('markupSelect');
+    const supplierCode = sel.dataset.supplier;
+    const chosen = parseFloat(document.getElementById('newMarkup').value) || parseFloat(sel.value);
+    
+    if (isNaN(chosen) || chosen <= 0) {
+      return alert('Por favor, escolha ou insira um valor de markup válido.');
+    }
+
+    const response = await fetch('', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json','X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]').value},
+      body: JSON.stringify({
+        action: 'update_markups',
+        supplierCode: supplierCode,
+        markup: chosen,
+        products: productsData
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || result.error) {
+      return alert(result.error || 'Falha ao aplicar markup.');
+    }
+
+    // atualiza o display com o valor retornado pelo view
+    document.getElementById('currentMarkupDisplay').textContent = result.active_markup;
+
+    // atualiza o array em memória
+    markupsByCode[supplierCode].forEach(m => {
+      m.is_active = (m.markup == result.active_markup);
+    });
+
+    // se for um novo, adiciona na nossa lista local
+    if (!markupsByCode[supplierCode].some(m => m.markup == result.active_markup)) {
+      markupsByCode[supplierCode].push({
+        markup:     result.active_markup,
+        is_active:  true,
+        created_at: new Date().toISOString().slice(0,10)
+      });
+    }
+
+    const markupFloat = parseFloat(result.active_markup);
+      productsData = result.products;
+      productsData.forEach(prod => {
+        prod.details.forEach(variant => {
+          variant.sales_price = variant.unit_price * markupFloat;
+        });
+      });
+
+    productsData = result.products;
+    saveToSessionStorage();
+    initializeDataTable();
+    updateCurrentSupplierAndMarkup();
+    bootstrap.Modal.getInstance(document.getElementById('markupModal')).hide();
+    window.location.reload();
+    showMessage(result.message, 'success');
+  });
+
+  document.getElementById('markupModal').addEventListener('hidden.bs.modal', () => {
+    window.location.reload();
+  });
+
+  function formatChildRow(rowData) {
+    const details = rowData.details;
+    
+    if (!details || details.length === 0) {
+      return '<div class="p-3">Nenhum detalhe disponível para este produto</div>';
+    }
+    
+    const markup = parseFloat(document.getElementById('currentMarkupDisplay').textContent) || 1;
+
+    if (!rowData.details || !rowData.details.length) {
+      return '<div class="p-3">Nenhum detalhe disponível para este produto</div>';
+    }
+
+    let html = `
+      <div class="table-responsive p-2">
+        <table class="table table-bordered table-sm child-table" id="child-table-${rowData.index}">
+          <thead>
+            <tr>
+              <th>Referência</th>
+              <th>Cor</th>
+              <th>Cor-Site</th>
+              <th>Tamanho</th>
+              <th>Descrição</th>
+              <th>Quantidade</th>
+              <th>Preço Custo</th>
+              <th>Preço Venda</th>
+              <th>Código de Barras</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+    
+    details.forEach((detail, idx) => {
+      html += `
+        <tr data-variant-index="${idx}">
+          <td>${detail.reference || ''}</td>
+          <td>${detail.color_code || ''}</td>
+          <td>${detail.color_name || ''}</td>
+          <td>${detail.size || ''}</td>
+          <td>${detail.description || ''}</td>
+          <td>${detail.quantity || ''}</td>
+          <td>${detail.unit_price || ''}</td>
+          <td>
+            ${ detail.sales_price != null
+                ? detail.sales_price.toFixed(2)
+                : '' }
+          </td>
+          <td>${detail.barcode || ''}</td>
+          <td>
+            <button class="btn btn-sm btn-danger delete-variant" 
+                    data-product-index="${rowData.index}" 
+                    data-variant-index="${idx}">
+              <i class="bx bx-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+    
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+    
+    return html;
+  }
+  
+  function setupChildRowEventListeners(rowData) {
+    const productIndex = rowData.index;
+    const tableId = `#child-table-${productIndex}`;
+    
+    // Remove previous handlers to avoid duplication
+    $(tableId).off('click', '.delete-variant');
+    
+    // Add new handler using event delegation
+    $(tableId).on('click', '.delete-variant', function(e) {
+      e.stopPropagation(); // Prevent propagation
+      e.preventDefault();   // Prevent default action
+      
+      // Get variant index
+      const variantIndex = parseInt($(this).data('variant-index'));
+      
+      // Confirm before deleting
+      variantToDelete.productIndex = productIndex;
+      variantToDelete.variantIndex = variantIndex;
+
+      const product = productsData[productIndex];
+      const variant = product.details[variantIndex];
+
+      variantDescription.textContent = `${variant.reference || ''} - ${variant.size || ''}`;
+      deleteVariantConfirmModal.show();
+    });
+  }
+  
+  
+  // Delete product
+  async function deleteProduct(index) {
+    try {
+      // Show loading
+      loadingOverlay.classList.remove('d-none');
+      loadingStatus.textContent = 'Excluindo produto...';
+      
+      // Send to backend
+      const response = await fetch('', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+          action: 'delete_product',
+          productIndex: index,
+          products: productsData
+        })
+      });
+      
+      // Process response
+      const data = await response.json();
+      
+      // Check for errors
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Erro ao excluir produto');
+      }
+      
+      // Update data
+      productsData = data.products;
+      
+      // Atualizar sessão
+      saveToSessionStorage();
+      
+      // Rebuild table
+      initializeDataTable();
+      
+      // Show success message
+      showMessage(data.message || 'Produto excluído com sucesso', 'success');
+    } catch (error) {
+      // Show error
+      showMessage(error.message, 'error');
+    } finally {
+      // Hide loading
+      loadingOverlay.classList.add('d-none');
+    }
+  }
+  
+  // Delete variant
+  async function deleteVariant(productIndex, variantIndex) {
+    try {
+      // Show loading
+      loadingOverlay.classList.remove('d-none');
+      loadingStatus.textContent = 'Excluindo variante...';
+      
+      // Send to backend
+      const response = await fetch('', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+          action: 'delete_variant',
+          productIndex: productIndex,
+          variantIndex: variantIndex,
+          products: productsData
+        })
+      });
+      
+      // Process response
+      const data = await response.json();
+      
+      // Check for errors
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Erro ao excluir variante');
+      }
+      
+      // Update data
+      productsData = data.products;
+      
+      // Atualizar sessão
+      saveToSessionStorage();
+      
+      // Get reference to main table row
+      const tr = $(`#product-${productIndex}`);
+      const row = dt.row(tr);
+      
+      // Update row data
+      row.data().details = productsData[productIndex].details;
+      
+      // If child row is open, update it
+      if (row.child.isShown()) {
+        // Update child row HTML
+        row.child(formatChildRow(row.data())).show();
+        
+        // Set up event listeners again
+        setupChildRowEventListeners(row.data());
+      }
+      
+      showMessage(data.message || 'Variante excluída com sucesso', 'success');
+    } catch (error) {
+      showMessage(error.message, 'error');
+    } finally {
+      loadingOverlay.classList.add('d-none');
+    }
+  }
+  
+  async function updateBarcodePrefixes(newPrefix) {
+    if (newPrefix.length !== 2 || !/^\d{2}$/.test(newPrefix)) {
+      throw new Error('O prefixo deve conter exatamente 2 dígitos numéricos');
+    }
+    
+    console.log('[updateBarcodePrefixes] Enviando dados para atualização...', {
+      prefix: newPrefix,
+      productsCount: productsData.length
+    });
+    
+    const response = await fetch('', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+      },
+      body: JSON.stringify({
+        action: 'update_barcode_prefix',
+        barcodePrefix: newPrefix,
+        products: productsData
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok || data.error) {
+      throw new Error(data.error || 'Erro ao atualizar prefixos');
+    }
+    
+    if (data.products) {
+      data.products = preserveDateInProducts(data.products);
+    }
+    
+    productsData = data.products;
+    saveToSessionStorage();
+    
+    // Atualizar apenas os child rows abertos sem reinicializar toda a tabela
+    dt.rows().every(function() {
+      const rowNode = this.node();
+      const isExpanded = $(rowNode).hasClass('shown');
+      
+      if (isExpanded) {
+        // Atualizar dados da linha
+        const newData = productsData[this.data().index];
+        this.data({...this.data(), details: newData.details});
+        
+        // Atualizar child row
+        this.child(formatChildRow(this.data())).show();
+        setupChildRowEventListeners(this.data());
+      }
+    });
+    
+    // Redesenhar a tabela mantendo os dropdowns
+    dt.draw(false);
+    
+    return data;
+  }
+  
+  // Função para abrir o modal de visualização
+  function openPreviewModal() {
+    if (productsData.length === 0) {
+        showMessage('Não há produtos para visualizar', 'error');
+        return;
+    }
+    
+    // Contar o total de variantes
+    let totalVariants = 0;
+    const supplierInfo = {};
+    
+    productsData.forEach(product => {
+        if (product.details && Array.isArray(product.details)) {
+            totalVariants += product.details.length;
+        }
+        
+        // Coletar informações dos fornecedores
+        const supplier = product.supplier || 'Sem fornecedor';
+        if (!supplierInfo[supplier]) {
+            supplierInfo[supplier] = {
+                products: 0,
+                variants: 0
+            };
+        }
+        supplierInfo[supplier].products += 1;
+        supplierInfo[supplier].variants += product.details ? product.details.length : 0;
+    });
+    
+    // Atualizar contador no modal
+    previewProductsCount.textContent = `${productsData.length} produtos (${totalVariants} variantes)`;
+    
+    // Limpar a tabela de visualização
+    previewTableBody.innerHTML = '';
+    
+    // Preencher a tabela com os dados
+    productsData.forEach(product => {
+        product.details.forEach(variant => {
+            const row = document.createElement('tr');
+            
+            // Calcular preço de venda estimado (se não definido)
+            let salesPrice = variant.sales_price || 0;
+            let markupInfo = '';
+            
+            if (!salesPrice && variant.unit_price && product.supplier) {
+                // Nota: Em produção, você poderia fazer uma chamada AJAX
+                // para buscar o markup atual do fornecedor e calcular
+                markupInfo = ` <small class="text-muted">(será calculado c/ markup)</small>`;
+            }
+            
+            row.innerHTML = `
+                <td>${variant.description || `${product.name} [${variant.color_code}/${variant.size}]`}</td>
+                <td>${variant.reference || ''}</td>
+                <td>${variant.barcode || ''}</td>
+                <td>${product.category || ''}</td>
+                <td>
+                    ${product.supplier || ''}
+                    ${supplierInfo[product.supplier] ? 
+                        `<br><small class="text-muted">${supplierInfo[product.supplier].variants} variantes</small>` : 
+                        ''
+                    }
+                </td>
+                <td>€${salesPrice || 0}${markupInfo}</td>
+                <td>€${variant.unit_price || 0}</td>
+                <td>${variant.quantity || 0}</td>
+                <td>${variant.size || ''}</td>
+                <td>${variant.color_name || ''}</td>
+            `;
+            previewTableBody.appendChild(row);
+        });
+    });
+    
+    // Mostrar informações de fornecedores no modal (opcional)
+    const supplierInfoHtml = Object.entries(supplierInfo)
+        .map(([supplier, info]) => 
+            `<span class="badge bg-info me-1">${supplier}: ${info.variants} variantes</span>`
+        ).join('');
+    
+    // Adicionar informações de fornecedores ao modal (se necessário)
+    const existingSupplierInfo = document.getElementById('supplierPreviewInfo');
+    if (existingSupplierInfo) {
+        existingSupplierInfo.innerHTML = supplierInfoHtml;
+    }
+    
+    // Mostrar o modal
+    previewMoloniModal.show();
+  }
+  
+  async function confirmSendToMoloni() {
+    try {
+        loadingOverlay.classList.remove('d-none');
+        loadingStatus.textContent = 'Enviando produtos para o Moloni...';
+        
+        sessionStorage.setItem('pending_moloni_products', JSON.stringify(productsData));
+        sessionStorage.setItem('return_after_moloni_auth', window.location.pathname);
+        
+        const response = await fetch('/aitigos/api/sync-products/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                products: productsData
+            })
+        });
+        
+        if (response.status === 401) {
+            showMessage('Autenticação necessária. Redirecionando para login do Moloni...', 'error');
+            
+            setTimeout(() => {
+                window.location.href = '/moloni/login-moloni/';
+            }, 1500);
+            
+            return false;
+        }
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || data.error || 'Erro ao enviar produtos para o Moloni');
+        }
+        
+        sessionStorage.removeItem('pending_moloni_products');
+        sessionStorage.removeItem('return_after_moloni_auth');
+        
+        productsContainer.classList.add('d-none');
+        
+        let successMessage = 'Produtos enviados com sucesso!';
+        if (data.metrics) {
+            successMessage += ` ${data.metrics.created} criados, ${data.metrics.updated} atualizados`;
+            if (data.metrics.skipped) {
+                successMessage += `, ${data.metrics.skipped} ignorados`;
+            }
+            if (data.metrics.failed) {
+                successMessage += `, ${data.metrics.failed} falhas`;
+            }
+            if (data.metrics.total_variants) {
+                successMessage += `. Total de ${data.metrics.total_variants} variantes processadas.`;
+            }
+            
+            if (data.metrics.markup_info && data.metrics.markup_info.total_with_markup > 0) {
+                const markupCount = data.metrics.markup_info.total_with_markup;
+                const avgMarkup = data.metrics.markup_info.average_markup;
+                successMessage += ` Markups aplicados em ${markupCount} produtos (média: ${avgMarkup}).`;
+            }
+        }
+        
+        showMessage(successMessage, 'success');
+        
+        uploadForm.reset();
+        
+        return true;
+    } catch (error) {
+        showMessage(error.message, 'error');
+        return false;
+    } finally {
+        loadingOverlay.classList.add('d-none');
+    }
+  }
+  
+  function preserveDateInProducts(products) {
+    console.log('[preserveDateInProducts] Verificando preservação de datas...');
+    
+    // Encontrar uma data válida nos produtos
+    let sharedDate = null;
+    for (let product of products) {
+        if (product.date && product.date.trim() && product.date.trim() !== 'undefined') {
+            sharedDate = product.date.trim();
+            console.log(`[preserveDateInProducts] Data encontrada: "${sharedDate}"`);
+            break;
+        }
+    }
+    
+    if (sharedDate) {
+        let correctedCount = 0;
+        for (let product of products) {
+            if (!product.date || product.date.trim() === '' || product.date.trim() === 'undefined') {
+                product.date = sharedDate;
+                correctedCount++;
+            }
+        }
+        
+        if (correctedCount > 0) {
+            console.log(`[preserveDateInProducts] Corrigidas ${correctedCount} datas vazias com "${sharedDate}"`);
+        }
+    } else {
+        console.warn('[preserveDateInProducts] ATENÇÃO: Nenhuma data válida encontrada!');
+    }
+    
+    return products;
+  }
+
+  function handleSendToMoloni() {
+    openPreviewModal();
+  }
+  
+  function cancelProcessing() {
+    // Limpar dados
+    productsData = [];
+    
+    // Limpar sessão
+    clearSessionStorage();
+    
+    // Esconder tabela
+    productsContainer.classList.add('d-none');
+    
+    // Resetar formulário
+    uploadForm.reset();
+    
+    // Mostrar mensagem
+    showMessage('Processamento cancelado com sucesso', 'success');
+  }
+
+  // Helper function to show messages
+  function showMessage(message, type = 'error') {
+    errorText.textContent = message;
+    
+    if (type === 'success') {
+      errorAlert.classList.remove('d-none', 'alert-danger');
+      errorAlert.classList.add('alert-success');
+      
+      // Hide success message after 3 seconds
+      setTimeout(() => {
+        errorAlert.classList.add('d-none');
+        errorAlert.classList.remove('alert-success');
+        errorAlert.classList.add('alert-danger');
+      }, 3000);
+    } else {
+      errorAlert.classList.remove('d-none', 'alert-success');
+      errorAlert.classList.add('alert-danger');
+    }
+  }
+  
+  // Event handler for prefix update button
+  async function handleUpdatePrefix() {
+    const newPrefix = updateBarcodePrefix.value;
+    
+    try {
+      // Show loading
+      loadingOverlay.classList.remove('d-none');
+      loadingStatus.textContent = 'Atualizando códigos de barras...';
+      
+      // Update prefixes
+      const result = await updateBarcodePrefixes(newPrefix);
+      
+      // Hide loading
+      loadingOverlay.classList.add('d-none');
+      
+      // Show success message
+      showMessage(result.message || `Prefixo atualizado com sucesso em ${result.updated_count} códigos de barras.`, 'success');
+      
+    } catch (error) {
+      // Hide loading, show error
+      loadingOverlay.classList.add('d-none');
+      showMessage(error.message, 'error');
+    }
+  }
+  
+  // Handler para o botão de cancelar
+  function handleCancel() {
+    // Mostrar modal de confirmação
+    confirmCancelModal.show();
+  }
+  
+  function openShopifyPreviewModal() {
+    if (productsData.length === 0) {
+      showMessage('Não há produtos para visualizar', 'error');
+      return;
+    }
+    
+    // Contar o total de variantes
+    let totalVariants = 0;
+    productsData.forEach(product => {
+      if (product.details && Array.isArray(product.details)) {
+        totalVariants += product.details.length;
+      }
+    });
+    
+    // Atualizar contador no modal
+    previewShopifyProductsCount.textContent = `${productsData.length} produtos (${totalVariants} variantes)`;
+    
+    // Limpar a tabela de visualização
+    previewShopifyTableBody.innerHTML = '';
+    
+    // Preencher a tabela com os dados
+    productsData.forEach(product => {
+      product.details.forEach(variant => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${variant.description || `${product.name} [${variant.color_code}/${variant.size}]`}</td>
+          <td>${variant.reference || ''}</td>
+          <td>${variant.barcode || ''}</td>
+          <td>${product.category || ''}</td>
+          <td>${product.brand || ''}</td>
+          <td>${variant.sales_price || 0}</td>
+          <td>${variant.unit_price || 0}</td>
+          <td>${variant.quantity || 0}</td>
+          <td>${variant.size || ''}</td>
+          <td>${variant.color_name || ''}</td>
+        `;
+        previewShopifyTableBody.appendChild(row);
+      });
+    });
+    
+    // Mostrar o modal
+    previewShopifyModal.show();
+  }
+
+  function openBothConfirmModal() {
+    if (productsData.length === 0) {
+      showMessage('Não há produtos para enviar', 'error');
+      return;
+    }
+    
+    // Mostrar modal de confirmação
+    confirmBothModal.show();
+  }
+
+  async function confirmSendToShopify() {
+    try {
+      // Mostrar carregamento
+      loadingOverlay.classList.remove('d-none');
+      loadingStatus.textContent = 'Enviando produtos para o Shopify...';
+      
+      // Enviar para o backend
+      const response = await fetch('/aitigos/api/sync-shopify/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+          products: productsData
+        })
+      });
+      
+      // Processar resposta
+      const data = await response.json();
+      
+      // Se houver erro 401 (Unauthorized), mostrar mensagem específica
+      if (response.status === 401) {
+        throw new Error('Sessão do Shopify expirada. Por favor, faça login novamente no Shopify.');
+      }
+      
+      // Verificar outros erros
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || data.error || 'Erro ao enviar produtos para o Shopify');
+      }
+      
+      // Limpar sessão após sucesso
+      clearSessionStorage();
+      
+      // Esconder tabela
+      productsContainer.classList.add('d-none');
+      
+      // Construir mensagem de sucesso detalhada
+      let successMessage = 'Produtos enviados para o Shopify com sucesso!';
+      if (data.metrics) {
+        successMessage += ` ${data.metrics.created} criados, ${data.metrics.updated} atualizados`;
+        if (data.metrics.skipped) {
+          successMessage += `, ${data.metrics.skipped} ignorados`;
+        }
+        if (data.metrics.failed) {
+          successMessage += `, ${data.metrics.failed} falhas`;
+        }
+        if (data.metrics.total_variants) {
+          successMessage += `. Total de ${data.metrics.total_variants} variantes processadas.`;
+        }
+      } else {
+        successMessage += ' ' + (data.message || '');
+      }
+      
+      // Mostrar mensagem de sucesso
+      showMessage(successMessage, 'success');
+      
+      // Resetar formulário
+      uploadForm.reset();
+      
+      return true;
+    } catch (error) {
+      // Mostrar erro
+      showMessage(error.message, 'error');
+      
+      return false;
+    } finally {
+      // Esconder carregamento
+      loadingOverlay.classList.add('d-none');
+    }
+  }
+
+  async function confirmSendToBoth() {
+    try {
+      // Mostrar carregamento
+      loadingOverlay.classList.remove('d-none');
+      loadingStatus.textContent = 'Enviando produtos para Moloni e Shopify...';
+      
+      // Enviar para o backend
+      const response = await fetch('/aitigos/api/sync-both/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+          products: productsData
+        })
+      });
+      
+      // Processar resposta
+      const data = await response.json();
+      
+      // Verificar erros
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || data.error || 'Erro ao sincronizar produtos');
+      }
+      
+      // Limpar sessão após sucesso
+      clearSessionStorage();
+      
+      // Esconder tabela
+      productsContainer.classList.add('d-none');
+      
+      // Mostrar mensagem de sucesso
+      showMessage(data.message || 'Produtos sincronizados com sucesso!', 'success');
+      
+      // Resetar formulário
+      uploadForm.reset();
+      
+      return true;
+    } catch (error) {
+      // Mostrar erro
+      showMessage(error.message, 'error');
+      
+      return false;
+    } finally {
+      // Esconder carregamento
+      loadingOverlay.classList.add('d-none');
+    }
+  }
+  // Set up initial event listeners
+  function setupInitialEventListeners() {
+
+    // Delete confirmation button
+    confirmDeleteBtn.addEventListener('click', function() {
+      if (productToDeleteIndex !== null) {
+        deleteProduct(productToDeleteIndex);
+        deleteConfirmModal.hide();
+      }
+    });
+    
+    // Delete variant confirmation button
+    confirmDeleteVariantBtn.addEventListener('click', function () {
+      if (variantToDelete.productIndex !== null && variantToDelete.variantIndex !== null) {
+        deleteVariant(variantToDelete.productIndex, variantToDelete.variantIndex);
+        deleteVariantConfirmModal.hide();
+      }
+    });
+    
+    // Update barcode prefix button
+    updatePrefixBtn.addEventListener('click', handleUpdatePrefix);
+    
+    // Input validation for barcode prefix
+    updateBarcodePrefix.addEventListener('input', function() {
+      this.value = this.value.replace(/[^0-9]/g, '');
+    });
+    
+    // Event listeners para botões de ação
+    previewMoloniBtn.addEventListener('click', openPreviewModal);
+    sendToMoloniBtn.addEventListener('click', handleSendToMoloni);
+    cancelBtn.addEventListener('click', handleCancel);
+    
+    // Event listeners para modais
+    confirmPreviewSendBtn.addEventListener('click', async function() {
+      previewMoloniModal.hide();
+      sessionStorage.setItem('pending_moloni_products', JSON.stringify(productsData));
+      sessionStorage.setItem('return_after_moloni_auth', window.location.pathname);
+
+      const success = await confirmSendToMoloni();
+      
+      if (success) {
+        productsData = [];
+        clearSessionStorage();
+      }
+    });
+    
+    confirmCancelBtn.addEventListener('click', function() {
+      confirmCancelModal.hide();
+      cancelProcessing();
+    });
+    sendToShopifyBtn.addEventListener('click', openShopifyPreviewModal);
+    confirmShopifySendBtn.addEventListener('click', async function() {
+      previewShopifyModal.hide();
+      const success = await confirmSendToShopify();
+      if (success) {
+        productsData = [];
+        clearSessionStorage();
+      }
+    });
+
+    sendToBothBtn.addEventListener('click', openBothConfirmModal);
+    confirmBothSendBtn.addEventListener('click', async function() {
+      confirmBothModal.hide();
+      const success = await confirmSendToBoth();
+      if (success) {
+        productsData = [];
+        clearSessionStorage();
+      }
+    });
+  }
+  
+  // Initialize
+  setupInitialEventListeners();
+  
+  // Verificar sessão ao carregar a página
+  const hasRestoredSession = checkSessionStorage();
+  if (hasRestoredSession) {
+    updateCurrentSupplierAndMarkup();
+    showMessage('Dados restaurados da sessão anterior', 'success');
+  }
+
+  window.handleMoloniAPI = async function(url, options = {}) {
+        try {
+            // Configurar cabeçalhos padrão se não fornecidos
+            if (!options.headers) {
+                options.headers = {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                };
+            }
+            
+            // Fazer a requisição
+            const response = await fetch(url, options);
+            
+            // Verificar se a resposta é JSON
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const data = await response.json();
+                
+                // Verificar se temos erro de autenticação do Moloni
+                if (response.status === 401 && data && data.code === 'moloni_reauth_required') {
+                    console.log('Sessão Moloni expirada. Redirecionando para login...');
+                    
+                    // Mostrar mensagem ao usuário se temos um elemento toast ou alertas
+                    if (window.showToast) {
+                        window.showToast('Sua sessão no Moloni expirou. Redirecionando para página de login...', 'warning');
+                    } else if (window.alert) {
+                        window.alert('Sua sessão no Moloni expirou. Você será redirecionado para a página de login.');
+                    }
+                    
+                    // Salvar estado atual para retornar depois de autenticar
+                    sessionStorage.setItem('moloni_redirect_after_auth', window.location.pathname);
+                    
+                    // Redirecionar para a página de login do Moloni após um pequeno atraso
+                    setTimeout(() => {
+                        window.location.href = '/moloni/login/';  // Ajuste conforme necessário
+                    }, 1500);
+                    
+                    // Lançar um erro para interromper o processamento
+                    throw new Error('Redirecionando para login Moloni');
+                }
+                
+                // Retorna os dados para processamento normal
+                return data;
+            }
+            
+            // Para respostas não-JSON
+            return await response.text();
+            
+        } catch (error) {
+            console.error('Erro na requisição API:', error);
+            throw error;
+        }
+    };
+
+    window.handleMoloniAuthReturn = function() {
+        const redirectPath = sessionStorage.getItem('moloni_redirect_after_auth');
+        if (redirectPath) {
+            sessionStorage.removeItem('moloni_redirect_after_auth');
+            
+            // Mostrar mensagem de sucesso
+            if (window.showToast) {
+                window.showToast('Login Moloni realizado com sucesso! Redirecionando de volta...', 'success');
+            }
+            
+            // Redirecionar para a página anterior após um pequeno atraso
+            setTimeout(() => {
+                window.location.href = redirectPath;
+            }, 1500);
+            
+            return true;
+        }
+        return false;
+    };
+    
+    // Exemplo de uso para uma página de retorno de autenticação Moloni
+    if (window.location.pathname.includes('/moloni/callback') || 
+        window.location.pathname.includes('/moloni/select-company')) {
+        window.handleMoloniAuthReturn();
+    }
+
+    function handleMoloniAuthError() {
+      // Mostrar mensagem ao usuário
+      showMessage('Sessão do Moloni expirada. Redirecionando para login...', 'error');
+      
+      // Salvar o estado atual na sessionStorage para retornar após a autenticação
+      sessionStorage.setItem('return_to_after_moloni_auth', window.location.pathname);
+      sessionStorage.setItem('pending_moloni_products', JSON.stringify(productsData));
+      
+      // Redirecionar para o login do Moloni após breve atraso
+      setTimeout(() => {
+          window.location.href = '/moloni/login/';
+      }, 1500);
+    }
+
+    const pendingProducts = sessionStorage.getItem('pending_moloni_products');
+  
+    if (pendingProducts) {
+      try {
+        // Recuperar os produtos salvos
+        const parsedProducts = JSON.parse(pendingProducts);
+        
+        if (parsedProducts && parsedProducts.length > 0) {
+          // Atribuir ao array global
+          productsData = parsedProducts;
+          
+          // Mostrar notificação
+          showMessage('Produtos recuperados após autenticação no Moloni', 'success');
+          
+          // Inicializar tabela
+          initializeDataTable();
+          
+          // Mostrar tabela
+          productsContainer.classList.remove('d-none');
+        }
+      } catch (error) {
+        console.error('Erro ao processar produtos pendentes:', error);
+      }
+    }
+    class ProductComparisonModal {
+      constructor() {
+        this.modal = new bootstrap.Modal(document.getElementById('productComparisonModal'));
+        this.confirmModal = new bootstrap.Modal(document.getElementById('insertConfirmModal'));
+        this.currentPlatform = null;
+        this.currentProducts = [];
+        this.comparisonResult = null;
+        this.insertionType = null;
+        
+        this.setupEventListeners();
+      }
+      
+      setupEventListeners() {
+        // Botões de ação principal
+        document.getElementById('insertSafeBtn').addEventListener('click', () => {
+          this.showInsertConfirmation('safe');
+        });
+        
+        document.getElementById('insertAllBtn').addEventListener('click', () => {
+          this.showInsertConfirmation('all');
+        });
+        
+        document.getElementById('confirmInsertBtn').addEventListener('click', () => {
+          this.executeInsertion();
+        });
+        
+        // Select all checkbox
+        document.getElementById('selectAllSafe').addEventListener('change', (e) => {
+          const checkboxes = document.querySelectorAll('#safeProductsTable input[type="checkbox"]');
+          checkboxes.forEach(cb => cb.checked = e.target.checked);
+        });
+      }
+      
+      async show(platform, products) {
+        this.currentPlatform = platform;
+        this.currentProducts = products;
+        
+        try {
+          const response = await fetch('/aitigos/api/compare-products/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+              products: products,
+              platform: platform
+            })
+          });
+          
+          const data = await response.json();
+          
+          if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Erro na comparação');
+          }
+          
+          this.comparisonResult = data.comparison;
+          
+          if (!this.comparisonResult.has_conflicts) {
+            console.log('Nenhum conflito detectado. Enviando diretamente...');
+            
+            showMessage('Nenhum produto duplicado encontrado. Enviando produtos...', 'success');
+            
+            // Prosseguir diretamente com a inserção
+            await this.proceedWithDirectInsertion();
+            return;
+          }
+          
+          console.log('Conflitos detectados. Mostrando modal de comparação...');
+          
+          this.showLoading();
+          this.modal.show();
+          
+          this.showResults();
+          
+        } catch (error) {
+          console.warn('Erro na comparação. Tentando envio direto...', error);
+          
+          showMessage('Erro na verificação de duplicatas. Enviando produtos...', 'warning');
+          
+          try {
+            await this.proceedWithDirectInsertion();
+          } catch (directError) {
+            showMessage('Erro ao enviar produtos: ' + directError.message, 'error');
+          }
+        }
+      }
+      
+      async proceedWithDirectInsertion() {
+        try {
+          // Mostrar loading na tela principal (não no modal)
+          loadingOverlay.classList.remove('d-none');
+          loadingStatus.textContent = `Enviando produtos para ${this.currentPlatform}...`;
+          
+          let response;
+          
+          if (this.currentPlatform === 'moloni') {
+            response = await fetch('/aitigos/api/sync-products/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+              },
+              body: JSON.stringify({
+                products: this.currentProducts
+              })
+            });
+          } else if (this.currentPlatform === 'shopify') {
+            response = await fetch('/aitigos/api/sync-shopify/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+              },
+              body: JSON.stringify({
+                products: this.currentProducts
+              })
+            });
+          }
+          
+          const data = await response.json();
+          
+          if (response.ok && data.success) {
+            // Sucesso: limpar dados e mostrar mensagem
+            showMessage(data.message || 'Produtos enviados com sucesso!', 'success');
+            
+            // Limpar dados
+            productsData = [];
+            clearSessionStorage();
+            productsContainer.classList.add('d-none');
+            uploadForm.reset();
+            
+          } else {
+            throw new Error(data.error || 'Erro no envio');
+          }
+          
+        } catch (error) {
+          showMessage('Erro ao enviar produtos: ' + error.message, 'error');
+        } finally {
+          // Esconder loading
+          loadingOverlay.classList.add('d-none');
+        }
+      }
+      
+      showLoading() {
+        document.getElementById('comparisonLoading').classList.remove('d-none');
+        document.getElementById('comparisonResults').classList.add('d-none');
+        document.getElementById('comparisonError').classList.add('d-none');
+        document.getElementById('comparisonActions').classList.add('d-none');
+      }
+      
+      showResults() {
+        document.getElementById('comparisonLoading').classList.add('d-none');
+        document.getElementById('comparisonResults').classList.remove('d-none');
+        document.getElementById('comparisonActions').classList.remove('d-none');
+        
+        const result = this.comparisonResult;
+        
+        // Atualizar summary cards
+        document.getElementById('totalNewProducts').textContent = result.total_new || 0;
+        document.getElementById('totalConflicts').textContent = result.conflicts?.length || 0;
+        document.getElementById('totalSafe').textContent = result.safe_to_insert?.length || 0;
+        document.getElementById('totalVariants').textContent = result.total_variants_new || 0;
+        
+        // Atualizar contadores nas tabs
+        document.getElementById('safeCount').textContent = result.safe_to_insert?.length || 0;
+        document.getElementById('conflictCount').textContent = result.conflicts?.length || 0;
+        
+        // Mostrar alertas
+        if (result.has_conflicts) {
+          document.getElementById('conflictsAlert').classList.remove('d-none');
+          document.getElementById('noConflictsAlert').classList.add('d-none');
+        } else {
+          document.getElementById('noConflictsAlert').classList.remove('d-none');
+          document.getElementById('conflictsAlert').classList.add('d-none');
+        }
+        
+        // Preencher tabela de produtos seguros
+        this.populateSafeProducts(result.safe_to_insert || []);
+        
+        // Preencher lista de conflitos
+        this.populateConflicts(result.conflicts || []);
+      }
+      
+      populateSafeProducts(safeProducts) {
+        const tbody = document.getElementById('safeProductsTable');
+        tbody.innerHTML = '';
+        
+        safeProducts.forEach((item, index) => {
+          const product = item.product;
+          const variantCount = product.details?.length || 0;
+          
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>
+              <input type="checkbox" class="form-check-input safe-product-checkbox" 
+                    value="${item.product_index}" checked>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div>
+                  <h6 class="mb-0">${product.name || 'Sem nome'}</h6>
+                  <small class="text-muted">${product.material_code || ''}</small>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-info">${product.category || 'N/A'}</span>
+            </td>
+            <td>${product.supplier || 'N/A'}</td>
+            <td>
+              <span class="badge bg-primary">${variantCount} variantes</span>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary view-details-btn" 
+                      data-product='${JSON.stringify(product)}'>
+                <i class="bx bx-show"></i> Detalhes
+              </button>
+            </td>
+          `;
+          
+          tbody.appendChild(row);
+        });
+      }
+      
+      populateConflicts(conflicts) {
+        const container = document.getElementById('conflictProductsList');
+        container.innerHTML = '';
+        
+        conflicts.forEach((conflict, index) => {
+          const product = conflict.product;
+          const variantConflicts = conflict.variant_conflicts || [];
+          const titleConflict = conflict.title_conflict;
+          
+          const conflictCard = document.createElement('div');
+          conflictCard.className = 'card mb-3 border-warning';
+          
+          let conflictDetails = '';
+          
+          // Conflito de título (Shopify)
+          if (titleConflict) {
+            conflictDetails += `
+              <div class="alert alert-warning">
+                <strong>Conflito de Título:</strong> 
+                Já existe um produto com o título "${titleConflict.value}"
+                <br><small>Produto existente: ID ${titleConflict.existing_product.id}</small>
+              </div>
+            `;
+          }
+          
+          // Conflitos de variantes
+          if (variantConflicts.length > 0) {
+            conflictDetails += '<div class="table-responsive"><table class="table table-sm">';
+            conflictDetails += '<thead><tr><th>Variante</th><th>Conflito</th><th>Produto Existente</th></tr></thead><tbody>';
+            
+            variantConflicts.forEach(vc => {
+              const variant = vc.variant;
+              vc.conflicts.forEach(conf => {
+                const existing = conf.existing_product || conf.existing_variant;
+                conflictDetails += `
+                  <tr>
+                    <td>
+                      <small>
+                        <strong>${variant.reference || 'N/A'}</strong><br>
+                        ${variant.color_name || ''} - ${variant.size || ''}
+                      </small>
+                    </td>
+                    <td>
+                      <span class="badge bg-warning">${conf.field}</span><br>
+                      <small>${conf.value}</small>
+                    </td>
+                    <td>
+                      <small>
+                        ${existing.name || existing.title || existing.product_title || 'N/A'}<br>
+                        ID: ${existing.id}
+                        ${existing.price ? ` - €${existing.price}` : ''}
+                      </small>
+                    </td>
+                  </tr>
+                `;
+              });
+            });
+            
+            conflictDetails += '</tbody></table></div>';
+          }
+          
+          conflictCard.innerHTML = `
+            <div class="card-header">
+              <h6 class="mb-0">
+                <i class="bx bx-error text-warning me-2"></i>
+                ${product.name || 'Produto sem nome'}
+                <small class="text-muted ms-2">(${product.material_code || 'Sem código'})</small>
+              </h6>
+            </div>
+            <div class="card-body">
+              ${conflictDetails}
+              <div class="d-flex justify-content-between align-items-center mt-3">
+                <div>
+                  <span class="badge bg-info">${product.category || 'N/A'}</span>
+                  <span class="badge bg-secondary ms-1">${variantConflicts.length} conflitos</span>
+                </div>
+                <div>
+                  <button class="btn btn-sm btn-outline-danger ignore-conflict-btn" 
+                          data-product-index="${conflict.product_index}">
+                    <i class="bx bx-upload"></i> Inserir Assim Mesmo
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+          
+          container.appendChild(conflictCard);
+        });
+      }
+      
+      showError(message) {
+        document.getElementById('comparisonLoading').classList.add('d-none');
+        document.getElementById('comparisonResults').classList.add('d-none');
+        document.getElementById('comparisonError').classList.remove('d-none');
+        document.getElementById('comparisonErrorText').textContent = message;
+      }
+      
+      showInsertConfirmation(type) {
+        this.insertionType = type;
+        
+        const summaryDiv = document.getElementById('insertionSummary');
+        let summaryText = '';
+        
+        if (type === 'safe') {
+          const checkedBoxes = document.querySelectorAll('#safeProductsTable input[type="checkbox"]:checked');
+          const safeCount = checkedBoxes.length;
+          
+          summaryText = `
+            <h6>Inserir Apenas Produtos Seguros</h6>
+            <p>Serão inseridos <strong>${safeCount} produtos</strong> que não têm conflitos com a base de dados.</p>
+            <p class="text-success">✓ Esta é a opção recomendada para evitar problemas.</p>
+          `;
+        } else if (type === 'all') {
+          const totalProducts = this.comparisonResult.total_new;
+          const conflictCount = this.comparisonResult.conflicts?.length || 0;
+          
+          summaryText = `
+            <h6>Inserir Todos os Produtos</h6>
+            <p>Serão inseridos <strong>${totalProducts} produtos</strong>, incluindo ${conflictCount} com conflitos.</p>
+            <div class="alert alert-warning">
+              <strong>⚠️ Atenção:</strong> Produtos com conflitos podem sobrescrever dados existentes ou causar erros.
+            </div>
+          `;
+        }
+        
+        summaryDiv.innerHTML = summaryText;
+        this.confirmModal.show();
+      }
+      
+      async executeInsertion() {
+        try {
+          this.confirmModal.hide();
+          this.modal.hide();
+          
+          // Mostrar loading na tela principal
+          loadingOverlay.classList.remove('d-none');
+          loadingStatus.textContent = `Inserindo produtos no ${this.currentPlatform}...`;
+          
+          let productsToInsert = [];
+          let safeIndices = [];
+          
+          if (this.insertionType === 'safe') {
+            // Obter apenas os produtos selecionados sem conflitos
+            const checkedBoxes = document.querySelectorAll('#safeProductsTable input[type="checkbox"]:checked');
+            safeIndices = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+            
+            // Usar endpoint filtrado
+            const response = await fetch('/aitigos/api/sync-filtered/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+              },
+              body: JSON.stringify({
+                products: this.currentProducts,
+                platform: this.currentPlatform,
+                safe_indices: safeIndices
+              })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+              showMessage(data.message || 'Produtos seguros inseridos com sucesso!', 'success');
+            } else {
+              throw new Error(data.error || 'Erro na inserção');
+            }
+            
+          } else if (this.insertionType === 'all') {
+            // Inserir todos os produtos (incluindo conflitos)
+            let response;
+            
+            if (this.currentPlatform === 'moloni') {
+              response = await fetch('/aitigos/api/sync-products/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                  products: this.currentProducts
+                })
+              });
+            } else if (this.currentPlatform === 'shopify') {
+              response = await fetch('/aitigos/api/sync-shopify/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                  products: this.currentProducts
+                })
+              });
+            }
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+              showMessage(data.message || 'Todos os produtos inseridos com sucesso!', 'success');
+            } else {
+              throw new Error(data.error || 'Erro na inserção');
+            }
+          }
+          
+          // Limpar dados após sucesso
+          productsData = [];
+          clearSessionStorage();
+          productsContainer.classList.add('d-none');
+          uploadForm.reset();
+          
+        } catch (error) {
+          showMessage(error.message, 'error');
+        } finally {
+          loadingOverlay.classList.add('d-none');
+        }
+      }
+    }
+
+    const productComparisonModal = new ProductComparisonModal();
+
+    function handleSendToMoloni() {
+      if (productsData.length === 0) {
+        showMessage('Não há produtos para enviar', 'error');
+        return;
+      }
+      
+      productComparisonModal.show('moloni', productsData);
+    }
+
+    function handleSendToShopify() {
+      if (productsData.length === 0) {
+        showMessage('Não há produtos para enviar', 'error');
+        return;
+      }
+      
+      productComparisonModal.show('shopify', productsData);
+    }
+});
+</script>
+{% endblock %}

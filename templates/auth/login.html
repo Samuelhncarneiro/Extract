@@ -1,0 +1,104 @@
+{% extends layout_path %}
+
+{% load static %}
+{% load i18n %}
+
+{% block title %}Login{% endblock %}
+
+
+{% block vendor_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'vendor/libs/@form-validation/form-validation.css' %}" />
+{% endblock vendor_css %}
+
+{% block vendor_js %}
+{{ block.super }}
+<script src="{% static 'vendor/libs/@form-validation/popular.js' %}"></script>
+<script src="{% static 'vendor/libs/@form-validation/bootstrap5.js' %}"></script>
+<script src="{% static 'vendor/libs/@form-validation/auto-focus.js' %}"></script>
+{% endblock vendor_js %}
+
+
+{% block page_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static  'vendor/css/pages/page-auth.css' %}">
+{% endblock page_css %}
+
+{% block page_js %}
+{{ block.super }}
+<script src="{% static 'js/pages-auth.js' %}"></script>
+{% endblock page_js %}
+
+
+{% block content %}
+<div class="container-xxl">
+  <div class="authentication-wrapper authentication-basic container-p-y">
+    <div class="authentication-inner">
+      <!-- Login -->
+      <div class="card px-sm-6 px-0">
+        <div class="card-body">
+          <!-- Logo -->
+          <div class="app-brand justify-content-center">
+            <a href="{% url 'login' %}" class="app-brand-link gap-2">
+              <span class="app-brand-logo-login demo">{% include 'partials/logo.html' with withbg="#000" %}</span>
+            </a>
+          </div>
+          <!-- /Logo -->
+          <h4 class="mb-1">Bem-vindo</h4>
+          <p class="mb-6" style="text-align: justify;">Faça login em sua conta.</p>
+
+
+          {% if messages %}
+          {% for message in messages %}
+          <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-danger{% else %}alert-warning{% endif %}" role="alert">
+            {{ message }}
+          </div>
+          {% endfor %}
+          {% endif %}
+
+          <form id="formAuthentication" class="mb-6" action="{% url 'login' %}" method="post">
+            {% csrf_token %}
+            <div class="mb-6">
+              <label for="email" class="form-label">Email ou Username</label>
+              <input type="text" class="form-control" id="email" name="email-username" placeholder="Entrar com email ou username" autofocus>
+            </div>
+            <div class="mb-6 form-password-toggle">
+              <label class="form-label" for="password">Palavra-Passe</label>
+              <div class="input-group input-group-merge">
+                <input type="password" id="password" class="form-control" name="password" placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;" aria-describedby="password" />
+                <span class="input-group-text cursor-pointer"><i class="bx bx-hide"></i></span>
+              </div>
+            </div>
+            <div class="mb-8">
+              <div class="d-flex justify-content-between mt-8">
+                <div class="form-check mb-0 ms-2">
+                  <input class="form-check-input" type="checkbox" id="remember-me">
+                  <label class="form-check-label" for="remember-me">
+                    Lembrar de mim
+                  </label>
+                </div>
+                <a href="{% url 'forgot-password' %}">
+                  <span>Esqueceu sua senha?</span>
+                </a>
+              </div>
+            </div>
+            <div class="mb-6">
+              <button class="btn btn-primary d-grid w-100" type="submit">Login</button>
+            </div>
+          </form>
+
+         <!-- <p class="text-center">
+            <span>É novo(a)? </span>
+            <a href="{% url 'register' %}">
+              <span>Criar uma conta</span>
+            </a>
+          </p>-->
+
+
+        </div>
+      </div>
+      <!-- /Login -->
+    </div>
+  </div>
+</div>
+{% endblock %}

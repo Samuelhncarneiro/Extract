@@ -1,0 +1,43 @@
+{
+  "menu": [
+    {
+      "url": "index",
+      "icon": "menu-icon tf-icons bx bx-home-circle",
+      "name": "Dashboard",
+      "slug": "index"
+    },
+    {
+      "menu_header": "Definicoes"
+    },
+    {
+      "url": "sechic",
+      "icon": "menu-icon tf-icons bx bx-detail",
+      "name": "Definições",
+      "slug": "sechic"
+    },
+    {
+      "menu_header": "Automação"
+    },
+    {
+      "url": "aitigos",
+      "icon": "menu-icon fa-solid fa-file-invoice",
+      "name": "Nota de Encomenda",
+      "slug": "page_2"
+    },
+    {
+      "menu_header": "Integrações Plataformas"
+    },
+    {
+      "url": "product_moloni",
+      "icon": "menu-icon tf-icons bx bx-detail",
+      "name": "Produtos moloni",
+      "slug": "page_products"
+    },
+    {
+      "url": "product_shopify",
+      "icon": "menu-icon tf-icons bx bx-detail",
+      "name": "Produtos shopify",
+      "slug": "page_products_shopify"
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{% extends layout_path %}
+
+{% load humanize %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}Dashboard{% endblock title %}
+
+{% block vendor_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.css' %}" />
+{% endblock vendor_css %}
+
+{% block content %}
+<div class="row g-3 d-flex align-items-stretch">
+  <div class="col-xxl-6 col-lg-8 col-md-8 order-0 d-flex">
+    <div class="card flex-fill">
+      <div class="d-flex align-items-start row h-100">
+        <div class="col-sm-7 d-flex flex-column justify-content-center">
+          <div class="card-body">
+            <h5 class="card-title text-primary mb-3">Bem-vindo! 🎉</h5>
+
+          </div>
+        </div>
+        <div class="col-sm-5 text-center text-sm-left d-flex align-items-center">
+          <div class="card-body pb-0 px-0 px-md-6">
+            <img src="{% static 'img/illustrations/man-with-laptop.png' %}" height="175" class="scaleX-n1-rtl" alt="View Badge User">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xxl-6 col-lg-4 col-md-4 order-1 d-flex">
+    <div class="card flex-fill">
+      <div class="card-body pb-4 d-flex align-items-center justify-content-between h-100">
+        <div class="info-section" style="flex-grow: 1;">
+          <p><strong>Utilizador:</strong> {{ user.username }}</p>
+
+        </div>
+        {% if entity and entity.logotipo %}
+          <div class="logo-section ms-3">
+            <img src="{{ entity.logotipo.url }}" alt="Logotipo da Empresa" class="img-fluid" style="max-height: 60px;">
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Início da Integração Moloni -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Integração com Moloni</h5>
+      </div>
+      <div class="card-body">
+        {% if not 'selected_company_id' in request.session %}
+          <div class="text-center py-3">
+            <i class="bx bx-store-alt mb-2" style="font-size: 3rem;"></i>
+            <h4>Conecte sua conta Moloni</h4>
+            <p class="mb-3">Integre sua empresa do Moloni para faturação e gestão financeira.</p>
+            <a href="{% url 'moloni:config' %}" class="btn btn-primary">
+              <i class="bx bx-link me-1"></i> Conectar ao Moloni
+            </a>
+          </div>
+        {% else %}
+          <div class="row align-items-center">
+            <div class="col-md-2 text-center">
+              {% if selected_company_url_image %}
+                <img src="{{ selected_company_url_image }}" class="img-fluid mb-3 mb-md-0" alt="{{ selected_company_name }}" style="max-height: 80px;">
+              {% else %}
+                <div class="company-placeholder bg-light d-flex align-items-center justify-content-center mb-3 mb-md-0" style="height: 80px;">
+                  <i class="bx bx-building text-muted" style="font-size: 2rem;"></i>
+                </div>
+              {% endif %}
+            </div>
+            <div class="col-md-10">
+              <h5 class="mb-2">{{ selected_company_name }}</h5>
+              <p class="mb-1"><strong>Contribuinte:</strong> {{ selected_company_vat }}</p>
+              <p class="mb-1"><strong>Email:</strong> {{ selected_company_email }}</p>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Integração Shopify -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Integração com Shopify</h5>
+      </div>
+      <div class="card-body">
+        {% if not 'selected_shopify_domain' in request.session %}
+          <div class="text-center py-3">
+            <i class="bx bx-shopping-bag mb-2" style="font-size: 3rem;"></i>
+            <h4>Conecte sua loja Shopify</h4>
+            <p class="mb-3">Integre sua loja para gerenciar produtos e pedidos.</p>
+            <a href="{% url 'shopify:connect' %}" class="btn btn-primary">
+              <i class="bx bx-link me-1"></i> Conectar ao Shopify
+            </a>
+            
+          </div>
+        {% else %}
+          <div class="row align-items-center">
+            <div class="col-md-2 text-center">
+              <div class="store-placeholder bg-light d-flex align-items-center justify-content-center mb-3 mb-md-0" style="height: 80px;">
+                <i class="bx bx-shopping-bag text-muted" style="font-size: 2rem;"></i>
+              </div>
+            </div>
+            <div class="col-md-8">
+              <h5 class="mb-2">{{ request.session.selected_shopify_name }}</h5>
+              <p class="mb-1"><strong>Domínio:</strong> {{ request.session.selected_shopify_domain }}</p>
+              <p class="mb-1"><strong>Email:</strong> {{ request.session.selected_shopify_email }}</p>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Fim da Integração Moloni -->
+
+{% endblock %}

@@ -1,0 +1,2523 @@
+<!-- apps/aitigos/templates/product_edit.html-->
+{% extends layout_path %}
+
+{% load static %}
+{% load i18n %}
+
+{% block title %}Editar Produto{% endblock %}
+
+{% block vendor_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'vendor/libs/flatpickr/flatpickr.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/select2/select2.min.css' %}" />
+<style>
+  .select2-container--default .select2-results__option[aria-selected=true] {
+    background-color: #f0f0f0;
+  }
+  .select2-container--default .select2-selection--single {
+    height: 38px;
+    padding-top: 4px;
+  }
+  .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 36px;
+  }
+</style>
+{% endblock vendor_css %}
+
+{% block vendor_js %}
+{{ block.super }}
+<script src="{% static 'vendor/libs/moment/moment.js' %}"></script>
+<script src="{% static 'vendor/libs/flatpickr/flatpickr.js' %}"></script>
+<script src="{% static 'vendor/libs/select2/select2.full.min.js' %}"></script>
+{% endblock vendor_js %}
+
+{% block content %}
+<div class="container-xxl flex-grow-1 container-p-y">
+  <div class="row">
+    <div class="col-12">
+      <!-- Cabeçalho com caminho de volta -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold py-3 mb-0">
+          <span class="text-muted fw-light">Produtos /</span> Editar Produto
+        </h4>
+        <a href="{% url 'aitigos' %}" class="btn btn-secondary">
+          <i class="bx bx-arrow-back me-1"></i> Voltar para Lista
+        </a>
+      </div>
+
+      <!-- Alerta para mostrar mensagens -->
+      <div id="alertContainer" class="mb-4">
+        <div id="alertMessage" class="alert d-none" role="alert"></div>
+      </div>
+
+      <!-- Indicador de carregamento -->
+      <div id="loadingOverlay" class="d-none">
+        <div class="text-center p-4">
+          <div class="spinner-border text-primary mb-3" role="status"></div>
+          <h5 id="loadingStatus">Processando produto...</h5>
+        </div>
+      </div>
+
+      <!-- Card principal de edição -->
+      <div class="row">
+        <div class="col-12">
+          <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5 class="mb-0" id="productTitle">Editar Produto</h5>
+            </div>
+            <div class="card-body">
+              <form id="editProductForm">
+                <!-- Abas para Produto Principal e Variantes -->
+                <ul class="nav nav-tabs mb-3" id="productEditTabs" role="tablist">
+                  <li class="nav-item">
+                    <button class="nav-link active" id="product-info-tab" data-bs-toggle="tab" data-bs-target="#product-info" type="button" role="tab" aria-controls="product-info" aria-selected="true">Informações do Produto</button>
+                  </li>
+                  <li class="nav-item">
+                    <button class="nav-link" id="product-variants-tab" data-bs-toggle="tab" data-bs-target="#product-variants" type="button" role="tab" aria-controls="product-variants" aria-selected="false">Variantes</button>
+                  </li>
+                </ul>
+                
+                <!-- Conteúdo das Abas -->
+                <div class="tab-content" id="productEditTabsContent">
+                  <!-- Aba de Informações do Produto -->
+                  <div class="tab-pane fade show active" id="product-info" role="tabpanel" aria-labelledby="product-info-tab">
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <label class="form-label">Material Code</label>
+                        <input type="text" class="form-control" id="edit-material-code" name="material_code">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label">Nome</label>
+                        <input type="text" class="form-control" id="edit-name" name="name">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label">Composição</label>
+                        <input type="text" class="form-control" id="edit-composition" name="composition">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label">Categoria</label>
+                        <select class="form-select select2-editable" id="edit-category" name="category">
+                          {% for category in categories %}
+                          <option value="{{ category.name }}">{{ category.name }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label">Sexo</label>
+                        <select class="form-select" id="edit-gender" name="gender">
+                          <option value="Homem">Homem</option>
+                          <option value="Senhora">Senhora</option>
+                          <option value="Crianças">Crianças</option>
+                        </select>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label">Marca</label>
+                        <select class="form-select select2-editable" id="edit-brand" name="brand">
+                          {% for brand in brands %}
+                          <option value="{{ brand.name }}">{{ brand.name }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>      
+                      <div class="col-md-4">
+                        <label class="form-label">Fornecedor</label>
+                        <input type="hidden" id="edit-supplier-hidden" name="supplier" value="{{ product.supplier|default:'' }}">
+                        <select class="form-select" id="edit-supplier" disabled>
+                          {% if product.supplier %}
+                            <option value="{{ product.supplier }}">{{ product.supplier }}</option>
+                          {% else %}
+                            <option value="">Sem fornecedor definido</option>
+                          {% endif %}
+                        </select>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label">Data</label>
+                        <input type="text" class="form-control flatpickr-date" id="edit-date" name="date">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label">Armazém</label>
+                        <input type="text" class="form-control" id="edit-warehouse" name="warehouse" value="1">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label">Integrado</label>
+                        <input type="text" class="form-control" id="edit-integrated" name="integrated" value="0">
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Aba de Variantes -->
+                  <div class="tab-pane fade" id="product-variants" role="tabpanel" aria-labelledby="product-variants-tab">
+                    <div class="mb-3">
+                      <button type="button" class="btn btn-primary btn-sm" id="add-variant-btn">
+                        <i class="bx bx-plus"></i> Adicionar Variante
+                      </button>
+                    </div>
+                    
+                    <div class="table-responsive">
+                      <table class="table table-bordered" id="variants-table">
+                        <thead>
+                          <tr>
+                            <th>Referência</th>
+                            <th>C-Cor</th>
+                            <th>Cor</th>
+                            <th>Tamanho</th>
+                            <th>Quantidade</th>
+                            <th>Preço Custo</th>
+                            <th>Preço Venda</th>
+                            <th>Código de Barras</th>
+                            <th>Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody id="variants-table-body">
+                          <!-- As linhas das variantes serão adicionadas dinamicamente via JavaScript -->
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Botões de Ação -->
+                <div class="mt-4">
+                  <button type="button" class="btn btn-secondary" id="cancelBtn">
+                    <i class="bx bx-x me-1"></i> Cancelar
+                  </button>
+                  <button type="button" class="btn btn-primary" id="saveProductBtn">
+                    <i class="bx bx-save me-1"></i> Guardar Alterações
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmação de Ação Modal -->
+<div class="modal fade" id="confirmActionModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmActionTitle">Confirmar Ação</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmActionMessage">Tem certeza que deseja realizar esta ação?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="confirmActionBtn">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmação para Excluir Variante -->
+<div class="modal fade" id="deleteVariantConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Excluir Variante</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja excluir esta variante?</p>
+        <p class="fw-bold" id="variantDescription"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteVariantBtn">Excluir</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="text/javascript">
+  window.variantDropdownData = {
+    colors: {{ colors|safe }},
+    sizes: {{ sizes|safe }}
+  };
+  
+  window.suppliersData = {{ suppliers|safe }};
+  
+  console.log("=== DADOS CARREGADOS ===");
+  console.log("Colors:", window.variantDropdownData.colors);
+  console.log("Sizes:", window.variantDropdownData.sizes);
+  console.log("Suppliers:", window.suppliersData);
+  console.log("=========================");
+</script>
+{% endblock %}
+
+{% block page_js %}
+{{ block.super }}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const editProductForm = document.getElementById('editProductForm');
+    const productTitle = document.getElementById('productTitle');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingStatus = document.getElementById('loadingStatus');
+    const alertMessage = document.getElementById('alertMessage');
+    const alertContainer = document.getElementById('alertContainer');
+    const variantsTableBody = document.getElementById('variants-table-body');
+    const addVariantBtn = document.getElementById('add-variant-btn');
+    const saveProductBtn = document.getElementById('saveProductBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    
+    const deleteVariantConfirmModal = new bootstrap.Modal(document.getElementById('deleteVariantConfirmModal'));
+    const confirmDeleteVariantBtn = document.getElementById('confirmDeleteVariantBtn');
+    const variantDescription = document.getElementById('variantDescription');
+    let variantToDelete = { index: null };
+    
+    const STORAGE_KEY = 'aitigos_products_data';
+    const CURRENT_PRODUCT_KEY = 'aitigos_current_product_index';
+    
+    let currentProductIndex = null;
+    let productsData = [];
+    
+    const codeCache = {
+      suppliers: new Map(),
+      colors: new Map(),
+      sizes: new Map()
+    };
+    
+    function getSupplierCode(supplierName) {
+      if (codeCache.suppliers.has(supplierName)) {
+        return codeCache.suppliers.get(supplierName);
+      }
+      
+      const supplierSelect = document.getElementById('edit-supplier');
+      if (supplierSelect) {
+        for (let option of supplierSelect.options) {
+          if (option.value === supplierName) {
+            const code = option.dataset.code.padStart(2, '0');
+            codeCache.suppliers.set(supplierName, code);
+            return code;
+          }
+        }
+      }
+      
+      if (window.suppliersData && Array.isArray(window.suppliersData)) {
+        const found = window.suppliersData.find(s => s.name === supplierName);
+        if (found) {
+          const code = found.code.padStart(2, '0');
+          codeCache.suppliers.set(supplierName, code);
+          return code;
+        }
+      }
+    }
+
+    function initializeVariantCodes() {
+      console.log('[initializeVariantCodes] === INÍCIO DA INICIALIZAÇÃO ===');
+      
+      const variantRows = document.querySelectorAll('#variants-table-body tr');
+      console.log(`[initializeVariantCodes] Processando ${variantRows.length} linhas`);
+      
+      variantRows.forEach((row, index) => {
+          console.log(`[initializeVariantCodes] --- Processando linha ${index + 1} ---`);
+          
+          const colorNameSelect = row.querySelector('select[name="color_name"]');
+          const sizeSelect = row.querySelector('select[name="size"]');
+          const colorCodeInput = row.querySelector('input[name="color_code"]');
+          const barcodeInput = row.querySelector('input[name="barcode"]');
+          
+          // ===== PRESERVAR CÓDIGO DE BARRAS ORIGINAL =====
+          if (barcodeInput && barcodeInput.value && !barcodeInput.dataset.originalBarcode) {
+              barcodeInput.dataset.originalBarcode = barcodeInput.value;
+              console.log(`[initializeVariantCodes] Código de barras original preservado: "${barcodeInput.value}"`);
+          }
+          
+          // ===== PROCESSAR CÓDIGO DA COR =====
+          if (colorNameSelect && colorCodeInput) {
+              const selectedColorName = colorNameSelect.value;
+              const currentColorCode = colorCodeInput.value;
+              
+              console.log(`[initializeVariantCodes] Linha ${index + 1} - Cor: "${selectedColorName}", Código atual: "${currentColorCode}"`);
+              
+              if (currentColorCode && currentColorCode !== "000" && currentColorCode !== "") {
+                  // JÁ TEM CÓDIGO VÁLIDO - PRESERVAR E CACHEAR
+                  console.log(`[initializeVariantCodes] Preservando código existente: "${currentColorCode}"`);
+                  
+                  // Cachear o código com o nome selecionado (se houver)
+                  if (selectedColorName) {
+                      codeCache.colors.set(selectedColorName, currentColorCode);
+                      console.log(`[initializeVariantCodes] Código cacheado: "${selectedColorName}" -> "${currentColorCode}"`);
+                  }
+                  
+                  // Se não há cor selecionada, tentar encontrar pelo código
+                  if (!selectedColorName) {
+                      const colors = window.variantDropdownData?.colors || [];
+                      const matchingColor = colors.find(color => String(color.code).padStart(3, '0') === currentColorCode);
+                      
+                      if (matchingColor) {
+                          colorNameSelect.value = matchingColor.name;
+                          codeCache.colors.set(matchingColor.name, currentColorCode);
+                          console.log(`[initializeVariantCodes] Cor inferida do código: "${matchingColor.name}"`);
+                      }
+                  }
+              } else if (selectedColorName) {
+                  // NÃO TEM CÓDIGO MAS TEM COR SELECIONADA - BUSCAR CÓDIGO
+                  const colorCode = getColorCode(selectedColorName);
+                  if (colorCode && colorCode !== "000") {
+                      colorCodeInput.value = colorCode;
+                      console.log(`[initializeVariantCodes] Código da cor definido: "${colorCode}"`);
+                  } else {
+                      console.log(`[initializeVariantCodes] Código não encontrado para cor: "${selectedColorName}"`);
+                  }
+              }
+          }
+          
+          // ===== PROCESSAR TAMANHO =====
+          if (sizeSelect) {
+              const selectedSize = sizeSelect.value;
+              console.log(`[initializeVariantCodes] Linha ${index + 1} - Tamanho selecionado: "${selectedSize}"`);
+              
+              if (selectedSize) {
+                  // CACHEAR O CÓDIGO DO TAMANHO (importante para o barcode)
+                  const sizeCode = getSizeCode(selectedSize);
+                  console.log(`[initializeVariantCodes] Código do tamanho: "${selectedSize}" -> "${sizeCode}"`);
+              }
+          }
+          
+          // ===== GERAR CÓDIGO DE BARRAS COM CÓDIGOS PRESERVADOS =====
+          setTimeout(() => {
+              generateBarcodeRealTime(row);
+          }, 100);
+      });
+      
+      console.log('[initializeVariantCodes] === FIM DA INICIALIZAÇÃO ===');
+  }
+
+    function getColorCode(colorName) {      
+      console.log(`[getColorCode] Buscando código para cor: "${colorName}"`);
+      
+      if (codeCache.colors.has(colorName)) {
+          const cached = codeCache.colors.get(colorName);
+          console.log(`[getColorCode] Encontrado no cache: "${cached}"`);
+          return cached;
+      }
+      
+      if (!colorName || colorName.trim() === '') {
+          console.log(`[getColorCode] Nome vazio, retornando null`);
+          return null;
+      }
+      
+      const colors = window.variantDropdownData?.colors || [];
+      console.log(`[getColorCode] Buscando em ${colors.length} cores disponíveis`);
+      
+      const foundColor = colors.find(color => {
+          const match = color.name === colorName || 
+                      color.name?.toLowerCase() === colorName.toLowerCase() ||
+                      color.code === colorName;
+          if (match) {
+              console.log(`[getColorCode] Cor encontrada:`, color);
+          }
+          return match;
+      });
+      
+      if (foundColor && foundColor.code !== undefined && foundColor.code !== null) {
+          const code = String(foundColor.code).padStart(3, '0');
+          codeCache.colors.set(colorName, code);
+          console.log(`[getColorCode] Código encontrado e cacheado: "${code}"`);
+          return code;
+      }
+      
+      if (/^\d{1,3}$/.test(colorName)) {
+          const code = colorName.padStart(3, '0');
+          codeCache.colors.set(colorName, code);
+          console.log(`[getColorCode] Nome já é código válido: "${code}"`);
+          return code;
+      }
+      
+      console.log(`[getColorCode] Cor não encontrada: "${colorName}". Retornando null.`);
+      return null;
+  }
+
+  function getSizeCode(sizeValue) {
+    console.log(`[getSizeCode] Buscando código para tamanho: "${sizeValue}"`);
+    
+    if (codeCache.sizes.has(sizeValue)) {
+        const cached = codeCache.sizes.get(sizeValue);
+        console.log(`[getSizeCode] Encontrado no cache: "${cached}"`);
+        return cached;
+    }
+    
+    if (!sizeValue || sizeValue.toString().trim() === '') {
+        console.log(`[getSizeCode] Valor vazio, retornando null`);
+        return null;
+    }
+    
+    const sizeStr = sizeValue.toString().trim();
+    
+    const sizes = window.variantDropdownData?.sizes || [];
+    console.log(`[getSizeCode] Buscando "${sizeStr}" em ${sizes.length} tamanhos disponíveis`);
+    
+    const foundSize = sizes.find(size => {
+        const match = size.value === sizeStr ||        // Buscar por value (XL, M, etc) - PRINCIPAL
+                     size.name === sizeStr;            // Buscar por name (compatibilidade)
+        if (match) {
+            console.log(`[getSizeCode] Tamanho encontrado por value/name:`, size);
+        }
+        return match;
+    });
+    
+    if (foundSize && foundSize.code !== undefined && foundSize.code !== null) {
+        const code = String(foundSize.code).padStart(3, '0');
+        codeCache.sizes.set(sizeValue, code);
+        console.log(`[getSizeCode] Código encontrado: "${sizeStr}" -> "${code}"`);
+        return code;
+    }
+    
+    const foundByCode = sizes.find(size => size.code === sizeStr);
+    if (foundByCode) {
+        const code = String(foundByCode.code).padStart(3, '0');
+        codeCache.sizes.set(sizeValue, code);
+        console.log(`[getSizeCode] Encontrado por código: "${sizeStr}" -> "${code}"`);
+        return code;
+    }
+    
+    if (/^\d{1,3}$/.test(sizeStr)) {
+        const code = sizeStr.padStart(3, '0');
+        codeCache.sizes.set(sizeValue, code);
+        console.log(`[getSizeCode] Valor numérico direto: "${code}"`);
+        return code;
+    }
+    
+    console.log(`[getSizeCode] ⚠️ Tamanho não encontrado: "${sizeValue}"`);
+    console.log(`[getSizeCode] Tamanhos disponíveis:`, sizes.map(s => `${s.value}(${s.code})`));
+    return null;
+  }
+
+    function extractSequentialFromReference(reference) {
+      try {
+        if (!reference) return 1;
+        const parts = reference.split('.');
+        if (parts.length > 1) {
+          const sequential = parseInt(parts[1]);
+          return isNaN(sequential) ? 1 : sequential;
+        }
+        return 1;
+      } catch {
+        return 1;
+      }
+    }
+
+    function extractSeasonFromBarcode(originalBarcode) {
+      if (originalBarcode && originalBarcode.length >= 2) {
+        return originalBarcode.substring(0, 2);
+      }
+    }
+
+    function initializeSupplierCache() {
+      const supplierSelect = document.getElementById('edit-supplier');
+      if (supplierSelect) {
+        codeCache.suppliers.clear();
+        
+        for (let option of supplierSelect.options) {
+          if (option.value && option.dataset.code) {
+            const code = option.dataset.code.padStart(2, '0');
+            codeCache.suppliers.set(option.value, code);
+            console.log(`Supplier cached from DOM: ${option.value} -> ${code}`);
+          }
+        }
+        
+        if (window.suppliersData && Array.isArray(window.suppliersData)) {
+          window.suppliersData.forEach(supplier => {
+            if (supplier.name && supplier.code) {
+              const code = supplier.code.padStart(2, '0');
+              codeCache.suppliers.set(supplier.name, code);
+              console.log(`Supplier cached from data: ${supplier.name} -> ${code}`);
+            }
+          });
+        }
+      }
+    }
+
+    function generateBarcode(season, supplierCode, sequentialNumber, colorCode, sizeCode) {
+      console.log(`[generateBarcode] Parâmetros recebidos:`, {
+        season: season,
+        supplierCode: supplierCode, 
+        sequentialNumber: sequentialNumber,
+        colorCode: colorCode,
+        sizeCode: sizeCode
+      });
+        const seasonStr = String(season).padStart(2, '0');
+        const supplier = String(supplierCode).padStart(2, '0');
+        const sequential = String(100 + parseInt(sequentialNumber || 1)).padStart(3, '0');
+        const color = String(colorCode).padStart(3, '0'); 
+        const size = String(sizeCode).padStart(3, '0');
+        
+        const result = `${seasonStr}${supplier}${sequential}${color}${size}`;
+        
+        console.log(`[generateBarcode] Componentes:`, {
+          seasonStr, supplier, sequential, color, size
+        });
+        console.log(`[generateBarcode] Resultado final: ${result}`);
+        
+        return result;
+    }
+
+    function updateVariantReferencesWithNewMaterialCode(newMaterialCode) {
+      const variantRows = variantsTableBody.querySelectorAll('tr');
+      
+      variantRows.forEach((row, index) => {
+        const referenceInput = row.querySelector('input[name="reference"]');
+        if (referenceInput) {
+          const newSequence = index + 1;
+          const newReference = `${newMaterialCode}.${newSequence}`;
+          const oldReference = referenceInput.value;
+          
+          referenceInput.value = newReference;
+          
+          referenceInput.classList.add('border-success');
+          referenceInput.style.backgroundColor = '#d4edda';
+          
+          setTimeout(() => {
+            referenceInput.classList.remove('border-success');
+            referenceInput.style.backgroundColor = '';
+          }, 1500);
+          
+          console.log(`Referência atualizada: ${oldReference} -> ${newReference}`);
+          
+          setTimeout(() => generateBarcodeRealTime(row), 100);
+        }
+      });
+    }
+
+    function setupTabChangeListeners() {
+      const tabs = document.querySelectorAll('#productEditTabs button[data-bs-toggle="tab"]');
+    
+      tabs.forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function(event) {
+          const targetTab = event.target.getAttribute('data-bs-target');
+          
+          if (targetTab === '#product-variants') {
+            console.log('[setupTabChangeListeners] Aba de variantes ativada...');
+            
+            setTimeout(() => {
+              // Verificar se material code mudou
+              const currentMaterialCode = document.getElementById('edit-material-code').value.trim();
+              const firstReference = variantsTableBody.querySelector('input[name="reference"]');
+              
+              if (firstReference && currentMaterialCode) {
+                const referenceMaterialCode = firstReference.value.split('.')[0];
+                
+                if (referenceMaterialCode !== currentMaterialCode) {
+                  console.log('[setupTabChangeListeners] Material code divergente, atualizando...');
+                  updateVariantReferencesWithNewMaterialCode(currentMaterialCode);
+                }
+              }
+              
+              // NOVO: Sempre reinicializar códigos ao mudar para aba de variantes
+              initializeVariantCodes();
+              
+            }, 200);
+          }
+        });
+      });
+    }
+
+    function createBarcodeBreakdown(barcode) {
+      if (!barcode || barcode.length !== 13) return '';
+      
+      const season = barcode.substring(0, 2);
+      const supplier = barcode.substring(2, 4);
+      const sequential = barcode.substring(4, 7);
+      const color = barcode.substring(7, 10);
+      const size = barcode.substring(10, 13);
+      
+      return `
+        <div class="barcode-breakdown" title="Season-Supplier-Sequential-Color-Size">
+          <span class="barcode-part barcode-season">${season}</span>-<span class="barcode-part barcode-supplier">${supplier}</span>-<span class="barcode-part barcode-sequential">${sequential}</span>-<span class="barcode-part barcode-color">${color}</span>-<span class="barcode-part barcode-size">${size}</span>
+        </div>
+      `;
+    }
+
+    function generateBarcodeRealTime(row) {
+      try {
+          const referenceInput = row.querySelector('input[name="reference"]');
+          const colorCodeInput = row.querySelector('input[name="color_code"]');
+          const colorNameSelect = row.querySelector('select[name="color_name"]');
+          const sizeSelect = row.querySelector('select[name="size"]');
+          const barcodeInput = row.querySelector('input[name="barcode"]');
+          
+          if (!referenceInput || !barcodeInput) {
+              console.log('[generateBarcodeRealTime] Elementos obrigatórios não encontrados');
+              return;
+          }
+          
+          const reference = referenceInput.value || '';
+          const colorName = colorNameSelect ? colorNameSelect.value : '';
+          const sizeValue = sizeSelect ? sizeSelect.value : '';
+          const currentColorCode = colorCodeInput ? colorCodeInput.value : '';
+          
+          console.log(`[generateBarcodeRealTime] Valores extraídos:`, {
+              reference, colorName, sizeValue, currentColorCode
+          });
+          
+          // Obter códigos necessários
+          const supplierName = $('#edit-supplier').val() || '';
+          const supplierCode = getSupplierCode(supplierName) || "00";
+          
+          // ===== PROCESSAR CÓDIGO DA COR =====
+          let colorCode = "000"; // Default
+          
+          if (currentColorCode && /^\d{3}$/.test(currentColorCode)) {
+              // Já tem código válido no input
+              colorCode = currentColorCode;
+              console.log(`[generateBarcodeRealTime] Usando código existente: ${colorCode}`);
+          } else if (colorName) {
+              // Buscar código pelo nome da cor selecionada
+              const foundColorCode = getColorCode(colorName);
+              if (foundColorCode && foundColorCode !== "000") {
+                  colorCode = foundColorCode;
+                  console.log(`[generateBarcodeRealTime] Código encontrado para cor "${colorName}": ${colorCode}`);
+              } else {
+                  console.log(`[generateBarcodeRealTime] Código não encontrado para cor "${colorName}", usando padrão`);
+              }
+          }
+          
+          // ===== PROCESSAR CÓDIGO DO TAMANHO =====
+          let sizeCode = "000"; // Default
+          
+          if (sizeValue) {
+              const foundSizeCode = getSizeCode(sizeValue);
+              if (foundSizeCode && foundSizeCode !== "000") {
+                  sizeCode = foundSizeCode;
+                  console.log(`[generateBarcodeRealTime] Código encontrado para tamanho "${sizeValue}": ${sizeCode}`);
+              } else {
+                  console.log(`[generateBarcodeRealTime] Código não encontrado para tamanho "${sizeValue}", usando padrão`);
+              }
+          }
+          
+          // ===== ATUALIZAR CAMPO DE CÓDIGO DA COR =====
+          if (colorCodeInput && colorCodeInput.value !== colorCode) {
+              colorCodeInput.value = colorCode;
+              console.log(`[generateBarcodeRealTime] Campo código da cor atualizado: ${colorCode}`);
+          }
+          
+          // ===== GERAR NOVO CÓDIGO DE BARRAS =====
+          const sequentialNumber = extractSequentialFromReference(reference);
+          
+          // Extrair season do código original ou usar padrão
+          let season = "23"; // Default
+          const originalBarcode = barcodeInput.dataset.originalBarcode || barcodeInput.value;
+          if (originalBarcode && originalBarcode.length >= 2) {
+              season = extractSeasonFromBarcode(originalBarcode) || season;
+          }
+          
+          console.log(`[generateBarcodeRealTime] Dados para geração:`, {
+              season, 
+              supplier: supplierCode, 
+              sequential: sequentialNumber, 
+              color: colorCode, 
+              size: sizeCode
+          });
+          
+          const newBarcode = generateBarcode(season, supplierCode, sequentialNumber, colorCode, sizeCode);
+          
+          if (newBarcode && newBarcode.length === 13) {
+              const oldBarcode = barcodeInput.value;
+              
+              barcodeInput.value = newBarcode;
+              
+              if (oldBarcode !== newBarcode) {
+                  console.log(`[generateBarcodeRealTime] Código de barras atualizado: ${oldBarcode} -> ${newBarcode}`);
+                  
+                  // Efeito visual de atualização
+                  barcodeInput.classList.add('border-success');
+                  barcodeInput.style.backgroundColor = '#d4edda';
+                  
+                  setTimeout(() => {
+                      barcodeInput.classList.remove('border-success');
+                      barcodeInput.style.backgroundColor = '';
+                  }, 1500);
+              } else {
+                  console.log(`[generateBarcodeRealTime] Código de barras mantido: ${newBarcode}`);
+              }
+              
+              // Preservar como original se ainda não tem
+              if (!barcodeInput.dataset.originalBarcode) {
+                  barcodeInput.dataset.originalBarcode = newBarcode;
+                  console.log(`[generateBarcodeRealTime] Código preservado como original: ${newBarcode}`);
+              }
+              
+          } else {
+              console.error('[generateBarcodeRealTime] Falha ao gerar código de barras:', newBarcode);
+          }
+          
+      } catch (error) {
+          console.error('[generateBarcodeRealTime] Erro:', error);
+      }
+      
+      console.log(`[generateBarcodeRealTime] === FIM ===`);
+  }
+
+  function addVariantRowListeners(row) {
+    console.log('[addVariantRowListeners] Configurando listeners para nova linha');
+    
+    // Listener para referência
+    const referenceInput = row.querySelector('input[name="reference"]');
+    if (referenceInput) {
+        referenceInput.addEventListener('input', () => {
+            setTimeout(() => generateBarcodeRealTime(row), 100);
+        });
+    }
+    
+    // Listener para cor
+    const colorSelect = row.querySelector('select[name="color_name"]');
+    if (colorSelect) {
+        // Para Select2
+        $(colorSelect).on('change select2:select', () => {
+            console.log('[addVariantRowListeners] Cor alterada via Select2');
+            setTimeout(() => generateBarcodeRealTime(row), 100);
+        });
+        
+        // Para dropdown padrão
+        colorSelect.addEventListener('change', () => {
+            console.log('[addVariantRowListeners] Cor alterada via change nativo');
+            setTimeout(() => generateBarcodeRealTime(row), 100);
+        });
+    }
+    
+    // Listener para tamanho
+    const sizeSelect = row.querySelector('select[name="size"]');
+    if (sizeSelect) {
+        // Para Select2
+        $(sizeSelect).on('change select2:select', () => {
+            console.log('[addVariantRowListeners] Tamanho alterado via Select2');
+            setTimeout(() => generateBarcodeRealTime(row), 100);
+        });
+        
+        // Para dropdown padrão
+        sizeSelect.addEventListener('change', () => {
+            console.log('[addVariantRowListeners] Tamanho alterado via change nativo');
+            setTimeout(() => generateBarcodeRealTime(row), 100);
+        });
+    }
+    
+    console.log('[addVariantRowListeners] Listeners configurados com sucesso');
+  }
+
+  function setupRealtimeBarcodeUpdates() {
+    console.log('[setupRealtimeBarcodeUpdates] Configurando sistema de atualização automática');
+    
+    // Listener para mudanças no fornecedor
+    $('#edit-supplier').off('change.realtime select2:select.realtime').on('change.realtime select2:select.realtime', function() {
+        const newSupplier = $(this).val();
+        console.log(`[setupRealtimeBarcodeUpdates] Fornecedor alterado para: ${newSupplier}`);
+        
+        // Cachear novo fornecedor se necessário
+        if (newSupplier && !codeCache.suppliers.has(newSupplier)) {
+            const selectedOption = $(this).find('option:selected')[0];
+            if (selectedOption && selectedOption.dataset.code) {
+                const code = selectedOption.dataset.code.padStart(2, '0');
+                codeCache.suppliers.set(newSupplier, code);
+                console.log(`[setupRealtimeBarcodeUpdates] Novo supplier cacheado: ${newSupplier} -> ${code}`);
+            }
+        }
+        
+        // Atualizar todos os códigos de barras existentes
+        setTimeout(() => {
+            const variantRows = document.querySelectorAll('#variants-table-body tr');
+            console.log(`[setupRealtimeBarcodeUpdates] Atualizando ${variantRows.length} códigos de barras`);
+            
+            variantRows.forEach((row, index) => {
+                generateBarcodeRealTime(row);
+            });
+        }, 200);
+    });
+    
+    // Observer para novas linhas adicionadas dinamicamente
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType === 1 && node.tagName === 'TR') {
+                    console.log('[MutationObserver] Nova linha detectada, configurando...');
+                    
+                    setTimeout(() => {
+                        addVariantRowListeners(node);
+                        
+                        // Gerar código de barras inicial se estiver vazio
+                        const barcodeInput = node.querySelector('input[name="barcode"]');
+                        if (barcodeInput && (!barcodeInput.value || barcodeInput.value === '')) {
+                            console.log('[MutationObserver] Gerando código de barras para nova linha');
+                            generateBarcodeRealTime(node);
+                        }
+                    }, 500);
+                }
+            });
+        });
+    });
+    
+    observer.observe(variantsTableBody, { 
+        childList: true,
+        subtree: true 
+    });
+    
+    // Configurar listeners para linhas existentes
+    document.querySelectorAll('#variants-table-body tr').forEach(addVariantRowListeners);
+    
+    console.log('[setupRealtimeBarcodeUpdates] Sistema configurado com sucesso');
+  }
+
+    function preserveOriginalBarcodes() {
+      document.querySelectorAll('#variants-table-body input[name="barcode"]').forEach(input => {
+        if (input.value && !input.dataset.originalBarcode) {
+          input.dataset.originalBarcode = input.value;
+        }
+      });
+    }
+
+    // Função para adicionar estilos CSS (simplificado)
+    function addBarcodeStyles() {
+      const style = document.createElement('style');
+      style.textContent = `
+        .border-success {
+          border-color: #28a745 !important;
+          box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+          transition: all 0.3s ease;
+        }
+        
+        input[name="barcode"] {
+          font-family: 'Courier New', monospace;
+          font-weight: 500;
+        }
+        
+        input[name="barcode"]:focus {
+          border-color: #007bff;
+          box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // ===== CÓDIGO ORIGINAL COM MELHORIAS =====
+    
+    // Inicializar flatpickr para o campo de data
+    if (typeof flatpickr !== 'undefined') {
+      flatpickr(".flatpickr-date", {
+        dateFormat: "d-m-Y",
+        allowInput: true
+      });
+    }
+    
+    function ensureAllBarcodesAreGenerated() {
+      console.log('[ensureAllBarcodesAreGenerated] Verificando códigos de barras vazios...');
+      
+      const variantRows = document.querySelectorAll('#variants-table-body tr');
+      let emptyBarcodes = 0;
+      
+      variantRows.forEach((row, index) => {
+          const barcodeInput = row.querySelector('input[name="barcode"]');
+          
+          if (barcodeInput && (!barcodeInput.value || barcodeInput.value.trim() === '')) {
+              console.log(`[ensureAllBarcodesAreGenerated] Gerando código para linha ${index + 1}`);
+              generateBarcodeRealTime(row);
+              emptyBarcodes++;
+          }
+      });
+      
+      if (emptyBarcodes > 0) {
+          console.log(`[ensureAllBarcodesAreGenerated] ${emptyBarcodes} códigos de barras foram gerados`);
+      } else {
+          console.log('[ensureAllBarcodesAreGenerated] Todos os códigos de barras já estão preenchidos');
+      }
+  }
+
+  function generateDefaultBarcode() {
+    const supplierName = $('#edit-supplier').val() || '';
+    const supplierCode = getSupplierCode(supplierName) || "00";
+    
+    // Usar season de códigos existentes ou padrão
+    let season = "23";
+    const existingBarcodes = document.querySelectorAll('#variants-table-body input[name="barcode"]');
+    
+    for (let input of existingBarcodes) {
+        if (input.value && input.value.length >= 2) {
+            const existingSeason = input.value.substring(0, 2);
+            if (/^\d{2}$/.test(existingSeason)) {
+                season = existingSeason;
+                break;
+            }
+        }
+    }
+    
+    // Próximo número sequencial
+    const existingRows = variantsTableBody.querySelectorAll('tr');
+    const nextSequence = existingRows.length + 1;
+    
+    // Códigos padrão
+    const defaultColorCode = "000";
+    const defaultSizeCode = "000";
+    
+    const barcode = generateBarcode(season, supplierCode, nextSequence, defaultColorCode, defaultSizeCode);
+    console.log(`[generateDefaultBarcode] Código padrão gerado: ${barcode}`);
+    
+    return barcode;
+  }
+  
+    function loadCurrentProduct() {
+      try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const productIndex = urlParams.get('index');
+          
+          console.log("Índice do produto na URL:", productIndex);
+          
+          const storedData = sessionStorage.getItem(STORAGE_KEY);
+          console.log("Dados armazenados:", storedData ? "Encontrados" : "Não encontrados");
+          
+          if (storedData) {
+              try {
+                  productsData = JSON.parse(storedData);
+                  productsData = productsData.map(product => validateAndFixGender(product));
+
+                  console.log("Produtos carregados:", productsData.length);
+                  
+                  for (let i = 0; i < Math.min(3, productsData.length); i++) {
+                      console.log(`Produto ${i}:`, {
+                          name: productsData[i].name,
+                          material_code: productsData[i].material_code,
+                          category: productsData[i].category,
+                          brand: productsData[i].brand,
+                          supplier: productsData[i].supplier
+                      });
+                  }
+                  
+                  if (productIndex !== null && productsData && Array.isArray(productsData)) {
+                      const index = parseInt(productIndex);
+                      if (!isNaN(index) && index >= 0 && index < productsData.length) {
+                          currentProductIndex = index;
+                          console.log("Produto atual:", productsData[currentProductIndex].name);
+                          return true;
+                      } else {
+                          console.error("Índice inválido ou fora dos limites:", productIndex);
+                      }
+                  }
+              } catch (parseError) {
+                  console.error("Erro ao analisar JSON:", parseError);
+                  console.error("Texto JSON:", storedData.substring(0, 200) + "...");
+                  return false;
+              }
+          }
+          
+          const storedIndex = sessionStorage.getItem(CURRENT_PRODUCT_KEY);
+          if (storedIndex !== null && storedData) {
+              const index = parseInt(storedIndex);
+              if (!isNaN(index) && index >= 0 && index < productsData.length) {
+                  currentProductIndex = index;
+                  console.log("Usando índice armazenado:", currentProductIndex);
+                  return true;
+              }
+          }
+      } catch (error) {
+          console.error('Erro ao carregar produto da sessão:', error);
+      }
+      
+      console.error("Nenhum produto carregado");
+      return false;
+    }
+  
+    function initializeSelect2Dropdowns() {
+      try {
+          if (typeof $ === 'undefined' || typeof $.fn.select2 === 'undefined') {
+              console.error("jQuery ou Select2 não disponível");
+              setSelectValuesWithoutSelect2();
+              return;
+          }
+          
+          console.log("Inicializando campos Select2...");
+          
+          $('.select2-editable').each(function() {
+              try {
+                  $(this).select2({
+                      width: '100%',
+                      tags: true,
+                      createTag: function(params) {
+                          return {
+                              id: params.term,
+                              text: params.term,
+                              newOption: true
+                          };
+                      }
+                  });
+                  
+                  const fieldId = $(this).attr('id');
+                  const initialValue = $(this).attr('data-initial-value');
+                  console.log(`Definindo valor inicial para ${fieldId}: "${initialValue}"`);
+                  
+                  if (initialValue && initialValue.trim() !== '') {
+                      let optionExists = false;
+                      $(this).find('option').each(function() {
+                          if ($(this).val() === initialValue) {
+                              optionExists = true;
+                              return false;
+                          }
+                      });
+                      
+                      if (!optionExists) {
+                          const newOption = new Option(initialValue, initialValue, true, true);
+                          $(this).append(newOption);
+                      }
+                      
+                      $(this).val(initialValue).trigger('change');
+                      console.log(`Valor definido com sucesso para ${fieldId}`);
+                  }
+              } catch (error) {
+                  console.error(`Erro ao inicializar Select2 para ${$(this).attr('id')}:`, error);
+              }
+          });
+      } catch (error) {
+          console.error("Erro geral ao inicializar Select2:", error);
+          setSelectValuesWithoutSelect2();
+      }
+    }
+
+    function setSelectValuesWithoutSelect2() {
+      console.log("Usando fallback para campos select padrão");
+      
+      const product = productsData[currentProductIndex];
+      if (!product) return;
+      
+      try {
+          const brandSelect = document.getElementById('edit-brand');
+          if (brandSelect && product.brand) {
+              let brandFound = false;
+              for (let i = 0; i < brandSelect.options.length; i++) {
+                  if (brandSelect.options[i].value === product.brand) {
+                      brandSelect.selectedIndex = i;
+                      brandFound = true;
+                      break;
+                  }
+              }
+              
+              if (!brandFound && product.brand.trim() !== '') {
+                  const newOption = document.createElement('option');
+                  newOption.value = product.brand;
+                  newOption.text = product.brand;
+                  brandSelect.add(newOption);
+                  brandSelect.value = product.brand;
+              }
+          }
+          
+          const categorySelect = document.getElementById('edit-category');
+          if (categorySelect && product.category) {
+              let categoryFound = false;
+              for (let i = 0; i < categorySelect.options.length; i++) {
+                  if (categorySelect.options[i].value === product.category) {
+                      categorySelect.selectedIndex = i;
+                      categoryFound = true;
+                      break;
+                  }
+              }
+              
+              if (!categoryFound && product.category.trim() !== '') {
+                  const newOption = document.createElement('option');
+                  newOption.value = product.category;
+                  newOption.text = product.category;
+                  categorySelect.add(newOption);
+                  categorySelect.value = product.category;
+              }
+          }
+          
+          const supplierSelect = document.getElementById('edit-supplier');
+          if (supplierSelect && product.supplier) {
+              let supplierFound = false;
+              for (let i = 0; i < supplierSelect.options.length; i++) {
+                  if (supplierSelect.options[i].value === product.supplier) {
+                      supplierSelect.selectedIndex = i;
+                      supplierFound = true;
+                      break;
+                  }
+              }
+              
+              if (!supplierFound && product.supplier.trim() !== '') {
+                  const newOption = document.createElement('option');
+                  newOption.value = product.supplier;
+                  newOption.text = product.supplier;
+                  supplierSelect.add(newOption);
+                  supplierSelect.value = product.supplier;
+              }
+          }
+          
+          console.log("Valores definidos com sucesso nos campos select padrão");
+      } catch (error) {
+          console.error("Erro ao definir valores nos campos select padrão:", error);
+      } 
+    }
+
+    function saveToSessionStorage() {
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(productsData));
+      } catch (error) {
+        console.error('Erro ao salvar na sessão:', error);
+      }
+    }
+    
+    function populateForm() {
+      console.log("Populando formulário, índice atual:", currentProductIndex);
+      
+      if (currentProductIndex === null || !productsData[currentProductIndex]) {
+          console.error("Produto não encontrado no índice:", currentProductIndex);
+          showMessage('Produto não encontrado', 'error');
+          return false;
+      }
+      
+      const product = productsData[currentProductIndex];
+      console.log("Dados do produto a preencher:", product);
+      
+      try {
+          productTitle.textContent = `Editar Produto: ${product.name} (${product.material_code})`;
+          
+          document.getElementById('edit-material-code').value = product.material_code || '';
+          document.getElementById('edit-name').value = product.name || '';
+          document.getElementById('edit-composition').value = product.composition || '';
+          
+        const genderSelect = document.getElementById('edit-gender');
+        const productGender = normalizeGender(product.gender || 'Homem');
+
+          console.log(`Definindo gender: "${productGender}"`);
+          
+          let genderFound = false;
+          for (let i = 0; i < genderSelect.options.length; i++) {
+              if (genderSelect.options[i].value === productGender) {
+                  genderSelect.selectedIndex = i;
+                  genderFound = true;
+                  console.log(`Gender encontrado e selecionado: ${productGender}`);
+                  break;
+              }
+          }
+          
+          // Se não encontrou, adicionar a opção (para casos edge)
+          if (!genderFound && productGender.trim() !== '') {
+              const newOption = document.createElement('option');
+              newOption.value = productGender;
+              newOption.text = productGender;
+              newOption.selected = true;
+              genderSelect.add(newOption);
+          }
+          
+          document.getElementById('edit-date').value = product.date || '';
+          document.getElementById('edit-warehouse').value = product.warehouse || '1';
+          document.getElementById('edit-integrated').value = product.integrated || '0';
+          
+          $('#edit-category').attr('data-initial-value', product.category || '');
+          $('#edit-brand').attr('data-initial-value', product.brand || '');
+          $('#edit-supplier').attr('data-initial-value', product.supplier || '');
+          
+          console.log("Valores iniciais para Select2 definidos:");
+          console.log("- Categoria:", product.category || '(vazio)');
+          console.log("- Marca:", product.brand || '(vazio)');  
+          console.log("- Fornecedor:", product.supplier || '(vazio)');
+          
+          if (typeof flatpickr !== 'undefined') {
+              flatpickr("#edit-date", {
+                  dateFormat: "d-m-Y",
+                  allowInput: true,
+                  defaultDate: product.date || null
+              });
+          }
+          
+          initializeSelect2Dropdowns();
+          populateVariantsTable(product.details || []);
+          
+          console.log("Formulário preenchido com sucesso");
+          return true;
+      } catch (error) {
+          console.error("Erro ao preencher formulário:", error);
+          showMessage('Erro ao preencher formulário: ' + error.message, 'error');
+          return false;
+      }
+    }
+    
+    function createColorDropdown(selectedColorCode = '', selectedColorName = '') {
+      const colors = window.variantDropdownData?.colors || [];
+      console.log("Criando dropdown de cores:", colors);
+      
+      let options = '<option value="">Selecionar cor...</option>';
+      
+      colors.forEach(color => {
+        const isSelected = (color.code === selectedColorCode || color.name === selectedColorName) ? 'selected' : '';
+        options += `<option value="${color.name}" data-code="${color.code}" ${isSelected}>${color.name}</option>`;
+      });
+      
+      return `
+        <select class="form-control form-control-sm variant-color-select select2-editable" name="color_name" 
+                data-initial-code="${selectedColorCode}" data-initial-name="${selectedColorName}">
+          ${options}
+        </select>
+      `;
+    }
+
+    function createSizeDropdown(selectedSize = '') {
+      const sizes = window.variantDropdownData?.sizes || [];
+      console.log(`[createSizeDropdown] Criando dropdown para tamanho: "${selectedSize}"`);
+      console.log(`[createSizeDropdown] Tamanhos disponíveis:`, sizes);
+      
+      let options = '<option value="">Selecionar tamanho...</option>';
+      
+      let sizeExists = false;
+      
+      sizes.forEach(size => {
+          let isSelected = false;
+          
+          if (size.value === selectedSize || size.code === selectedSize) {
+              isSelected = true;
+              sizeExists = true;
+          }
+          
+          const selectedAttr = isSelected ? 'selected' : '';
+          options += `<option value="${size.value}" data-code="${size.code}" ${selectedAttr}>${size.value}</option>`;
+      });
+      
+      if (selectedSize && selectedSize.trim() !== '' && !sizeExists) {
+          console.log(`[createSizeDropdown] Tamanho "${selectedSize}" não encontrado no dropdown, adicionando como opção personalizada`);
+          
+          const customOption = `<option value="${selectedSize}" selected>${selectedSize}</option>`;
+          options = options.replace(
+              '<option value="">Selecionar tamanho...</option>',
+              `<option value="">Selecionar tamanho...</option>${customOption}`
+          );
+      }
+      
+      return `
+          <select class="form-control form-control-sm variant-size-select select2-editable" name="size" 
+                  data-initial-value="${selectedSize}">
+              ${options}
+          </select>
+      `;
+  }
+
+  function initializeVariantSelect2() {
+    try {
+        if (typeof $ !== 'undefined' && typeof $.fn.select2 !== 'undefined') {
+            
+            // Processar selects de cor (mantém lógica atual)
+            $('.variant-color-select').each(function() {
+                const initialCode = $(this).attr('data-initial-code');
+                const initialName = $(this).attr('data-initial-name');
+                
+                $(this).select2({
+                    width: '100%',
+                    tags: true,
+                    createTag: function(params) {
+                        return {
+                            id: params.term,
+                            text: params.term,
+                            newOption: true
+                        };
+                    }
+                });
+                
+                $(this).on('select2:select', function(e) {
+                    const selectedOption = e.params.data;
+                    const row = $(this).closest('tr');
+                    const colorCodeInput = row.find('input[name="color_code"]');
+                    
+                    if (selectedOption.element && selectedOption.element.dataset.code) {
+                        colorCodeInput.val(selectedOption.element.dataset.code);
+                    } else if (selectedOption.newOption) {
+                        colorCodeInput.val('');
+                    }
+                });
+                
+                if (initialName) {
+                    let optionExists = false;
+                    $(this).find('option').each(function() {
+                        if ($(this).val() === initialName) {
+                            optionExists = true;
+                            return false;
+                        }
+                    });
+                    
+                    if (!optionExists && initialName) {
+                        const newOption = new Option(initialName, initialName, true, true);
+                        $(this).append(newOption);
+                    }
+                    
+                    $(this).val(initialName).trigger('change');
+                }
+            });
+            
+            // ===== PROCESSAR SELECTS DE TAMANHO (LÓGICA CORRIGIDA) =====
+            $('.variant-size-select').each(function() {
+                const initialValue = $(this).attr('data-initial-value');
+                
+                console.log(`[initializeVariantSelect2] Processando tamanho: "${initialValue}"`);
+                
+                $(this).select2({
+                    width: '100%',
+                    tags: true,
+                    createTag: function(params) {
+                        return {
+                            id: params.term,
+                            text: params.term,
+                            newOption: true
+                        };
+                    }
+                });
+                
+                if (initialValue && initialValue.trim() !== '') {
+                    let valueToSet = null;
+                    
+                    // Verificar se o valor inicial já existe como opção
+                    $(this).find('option').each(function() {
+                        if ($(this).val() === initialValue) {
+                            valueToSet = initialValue;
+                            console.log(`[initializeVariantSelect2] Tamanho encontrado no dropdown: ${initialValue}`);
+                            return false; // Sair do loop
+                        }
+                    });
+                    
+                    // Se não encontrou, criar nova opção com o valor original
+                    if (!valueToSet) {
+                        console.log(`[initializeVariantSelect2] Tamanho não encontrado, criando opção personalizada: ${initialValue}`);
+                        
+                        const newOption = new Option(
+                            `${initialValue} (original)`, // Texto da opção
+                            initialValue,                 // Valor da opção
+                            true,                        // Default selected
+                            true                         // Selected
+                        );
+                        
+                        // Tentar determinar código do tamanho
+                        const sizeCode = getSizeCode(initialValue);
+                        if (sizeCode) {
+                            newOption.setAttribute('data-code', sizeCode);
+                        }
+                        
+                        $(this).append(newOption);
+                        valueToSet = initialValue;
+                    }
+                    
+                    // Definir o valor e disparar change
+                    if (valueToSet) {
+                        $(this).val(valueToSet).trigger('change');
+                        console.log(`[initializeVariantSelect2] Valor definido: ${valueToSet}`);
+                        
+                        // CACHEAR o código do tamanho
+                        const selectedOption = $(this).find('option:selected')[0];
+                        if (selectedOption) {
+                            const sizeCode = selectedOption.dataset.code || getSizeCode(valueToSet);
+                            if (sizeCode) {
+                                codeCache.sizes.set(valueToSet, sizeCode);
+                                console.log(`[initializeVariantSelect2] Tamanho cacheado: ${valueToSet} -> ${sizeCode}`);
+                            }
+                        }
+                    }
+                }
+            });
+            
+            console.log("Select2 inicializado para variantes com preservação de tamanhos originais");
+        } else {
+            console.log("Select2 não disponível, usando campos padrão");
+            setVariantValuesWithoutSelect2();
+        }
+    } catch (error) {
+        console.error("Erro ao inicializar Select2 para variantes:", error);
+        setVariantValuesWithoutSelect2();     
+    }
+}
+
+
+    function setVariantValuesWithoutSelect2() {
+      console.log('[setVariantValuesWithoutSelect2] === INÍCIO ===');
+      
+      document.querySelectorAll('.variant-color-select').forEach((select, selectIndex) => {
+          const initialCode = select.getAttribute('data-initial-code');
+          const initialName = select.getAttribute('data-initial-name');
+          
+          console.log(`[setVariantValuesWithoutSelect2] Color Select ${selectIndex}: code="${initialCode}", name="${initialName}"`);
+          
+          const row = select.closest('tr');
+          const colorCodeInput = row.querySelector('input[name="color_code"]');
+          
+          const existingCode = colorCodeInput ? colorCodeInput.value : '';
+          console.log(`[setVariantValuesWithoutSelect2] Código existente no input: "${existingCode}"`);
+          
+          if (initialName) {
+              let valueSet = false;
+              
+              for (let i = 0; i < select.options.length; i++) {
+                  const option = select.options[i];
+                  if (option.value === initialName) {
+                      select.selectedIndex = i;
+                      valueSet = true;
+                      
+                      if (colorCodeInput) {
+                          let codeToUse = existingCode;
+                          if (!codeToUse || !/^\d{3}$/.test(codeToUse)) {
+                              codeToUse = option.dataset.code || initialCode || getColorCode(initialName);
+                          }
+                          colorCodeInput.value = codeToUse;
+                          
+                          if (codeToUse) {
+                              codeCache.colors.set(initialName, codeToUse);
+                          }
+                          console.log(`[setVariantValuesWithoutSelect2] Código preservado/definido: "${codeToUse}"`);
+                      }
+                      break;
+                  }
+              }
+              
+              if (!valueSet) {
+                  const newOption = document.createElement('option');
+                  newOption.value = initialName;
+                  newOption.text = initialName;
+                  newOption.selected = true;
+                  
+                  if (initialCode) {
+                      newOption.setAttribute('data-code', initialCode);
+                  }
+                  
+                  select.add(newOption);
+                  
+                  if (colorCodeInput) {
+                      let codeToUse = existingCode;
+                      if (!codeToUse || !/^\d{3}$/.test(codeToUse)) {
+                          codeToUse = initialCode || getColorCode(initialName);
+                      }
+                      colorCodeInput.value = codeToUse;
+                      
+                      if (codeToUse) {
+                          codeCache.colors.set(initialName, codeToUse);
+                      }
+                      console.log(`[setVariantValuesWithoutSelect2] Código (nova opção): "${codeToUse}"`);
+                  }
+              }
+          } else if (existingCode && /^\d{3}$/.test(existingCode)) {
+              if (colorCodeInput) {
+                  colorCodeInput.value = existingCode;
+                  
+                  const colors = window.variantDropdownData?.colors || [];
+                  const matchingColor = colors.find(color => String(color.code).padStart(3, '0') === existingCode);
+                  
+                  if (matchingColor) {
+                      let optionExists = false;
+                      for (let i = 0; i < select.options.length; i++) {
+                          if (select.options[i].value === matchingColor.name) {
+                              select.selectedIndex = i;
+                              optionExists = true;
+                              break;
+                          }
+                      }
+                      
+                      if (!optionExists) {
+                          const newOption = document.createElement('option');
+                          newOption.value = matchingColor.name;
+                          newOption.text = matchingColor.name;
+                          newOption.selected = true;
+                          newOption.setAttribute('data-code', existingCode);
+                          select.add(newOption);
+                      }
+                      
+                      codeCache.colors.set(matchingColor.name, existingCode);
+                      console.log(`[setVariantValuesWithoutSelect2] Cor inferida: ${matchingColor.name} (código: ${existingCode})`);
+                  }
+              }
+          }
+          
+          select.addEventListener('change', function() {
+              const selectedOption = this.options[this.selectedIndex];
+              const row = this.closest('tr');
+              const colorCodeInput = row.querySelector('input[name="color_code"]');
+              
+              if (colorCodeInput && selectedOption) {
+                  const code = selectedOption.dataset.code || getColorCode(selectedOption.value);
+                  if (code) {
+                      colorCodeInput.value = code;
+                      console.log(`[setVariantValuesWithoutSelect2] Novo código via change: ${code}`);
+                      setTimeout(() => generateBarcodeRealTime(row), 100);
+                  }
+              }
+          });
+      });
+      
+      document.querySelectorAll('.variant-size-select').forEach((select, selectIndex) => {
+          const initialValue = select.getAttribute('data-initial-value');
+          
+          console.log(`[setVariantValuesWithoutSelect2] Size select ${selectIndex}: value="${initialValue}"`);
+          
+          if (initialValue && initialValue.trim() !== '') {
+              let valueSet = false;
+              
+              for (let i = 0; i < select.options.length; i++) {
+                  const option = select.options[i];
+                  
+                  if (option.value === initialValue) {
+                      select.selectedIndex = i;
+                      valueSet = true;
+                      
+                      const sizeCode = option.dataset.code || getSizeCode(option.value);
+                      if (sizeCode) {
+                          codeCache.sizes.set(option.value, sizeCode);
+                          console.log(`[setVariantValuesWithoutSelect2] Tamanho encontrado: ${option.value} (código: ${sizeCode})`);
+                      }
+                      break;
+                  }
+              }
+              
+              if (!valueSet) {
+                  for (let i = 0; i < select.options.length; i++) {
+                      const option = select.options[i];
+                      
+                      if (option.dataset.code === initialValue) {
+                          select.selectedIndex = i;
+                          valueSet = true;
+                          
+                          codeCache.sizes.set(option.value, option.dataset.code);
+                          console.log(`[setVariantValuesWithoutSelect2] Tamanho encontrado por código: ${option.value} (código: ${option.dataset.code})`);
+                          break;
+                      }
+                  }
+              }
+              
+              if (!valueSet) {
+                  console.log(`[setVariantValuesWithoutSelect2] ⚠️ Tamanho "${initialValue}" não encontrado no dropdown`);
+                  
+                  let customExists = false;
+                  for (let i = 0; i < select.options.length; i++) {
+                      if (select.options[i].value === initialValue) {
+                          customExists = true;
+                          select.selectedIndex = i;
+                          break;
+                      }
+                  }
+                  
+                  if (!customExists) {
+                      // Criar nova opção personalizada
+                      const newOption = document.createElement('option');
+                      newOption.value = initialValue;
+                      newOption.text = `${initialValue} (personalizado)`;
+                      newOption.selected = true;
+                      
+                      // Tentar determinar código
+                      const sizeCode = getSizeCode(initialValue);
+                      if (sizeCode) {
+                          newOption.setAttribute('data-code', sizeCode);
+                          codeCache.sizes.set(initialValue, sizeCode);
+                          console.log(`[setVariantValuesWithoutSelect2] Opção personalizada criada: ${initialValue} (código: ${sizeCode})`);
+                      } else {
+                          // Se não conseguir determinar código, usar o próprio valor
+                          newOption.setAttribute('data-code', initialValue);
+                          console.log(`[setVariantValuesWithoutSelect2] Opção personalizada criada sem código: ${initialValue}`);
+                      }
+                      
+                      // Inserir no final da lista
+                      select.add(newOption);
+                  }
+                  
+                  valueSet = true;
+              }
+          }
+          
+          select.addEventListener('change', function() {
+              const selectedOption = this.options[this.selectedIndex];
+              const row = this.closest('tr');
+              
+              if (selectedOption && selectedOption.value) {
+                  const sizeCode = selectedOption.dataset.code || getSizeCode(selectedOption.value);
+                  if (sizeCode) {
+                      codeCache.sizes.set(selectedOption.value, sizeCode);
+                      console.log(`[setVariantValuesWithoutSelect2] Tamanho alterado: ${selectedOption.value} (código: ${sizeCode})`);
+                  }
+              }
+              
+              setTimeout(() => generateBarcodeRealTime(row), 100);
+          });
+      });
+      
+      console.log('[setVariantValuesWithoutSelect2] === FIM ===');
+  }
+
+    function populateVariantsTable(variants) {
+      console.log('[populateVariantsTable] Populando tabela com', variants.length, 'variantes');
+      
+      variantsTableBody.innerHTML = '';   
+      
+      variants.forEach((variant, idx) => {
+        console.log(`[populateVariantsTable] Variante ${idx}:`, {
+          color_name: variant.color_name,
+          color_code: variant.color_code,
+          size: variant.size
+        });
+        
+        const row = document.createElement('tr');
+        row.setAttribute('data-index', idx);
+        
+        row.innerHTML = `
+          <td>
+            <input type="text" class="form-control form-control-sm" name="reference" value="${variant.reference || ''}" readonly>
+          </td>
+          <td>
+            <input type="text" class="form-control form-control-sm" name="color_code" value="${variant.color_code || ''}" readonly>
+          </td>
+          <td>
+            ${createColorDropdown(variant.color_code || '', variant.color_name || '')}
+          </td>
+          <td>
+            ${createSizeDropdown(variant.size || '')}
+          </td>
+          <td>
+            <input type="number" class="form-control form-control-sm" name="quantity" value="${variant.quantity || 0}" min="0">
+          </td>
+          <td>
+            <input type="number" class="form-control form-control-sm" name="unit_price" value="${variant.unit_price || 0}" step="0.01" min="0">
+          </td>
+          <td>
+            <input type="number" class="form-control form-control-sm" name="sales_price" value="${variant.sales_price || 0}" step="0.01" min="0">
+          </td>
+          <td>
+            <input type="text" class="form-control form-control-sm" name="barcode" value="${variant.barcode || ''}" readonly>
+          </td>
+          <td>
+            <button type="button" class="btn btn-sm btn-danger remove-variant" data-index="${idx}">
+              <i class="bx bx-trash"></i>
+            </button>
+          </td>
+        `;
+        
+        variantsTableBody.appendChild(row);
+      });
+      
+      setTimeout(() => {
+        initializeVariantSelect2();
+        
+        setTimeout(() => {
+          preserveOriginalBarcodes();
+          setupRealtimeBarcodeUpdates();
+          
+          setTimeout(() => {
+            initializeVariantCodes();
+          }, 200);
+        }, 100);
+      }, 100);
+      
+      addRemoveVariantEventListeners();
+    }
+
+    function addRemoveVariantEventListeners() {
+      document.querySelectorAll('.remove-variant').forEach(button => {
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+        newButton.addEventListener('click', handleRemoveVariant);
+      });
+    }
+    
+    function handleRemoveVariant(event) {
+      try {
+        // Prevenir comportamento padrão
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Obter o botão que foi clicado
+        const button = event.target.closest('.remove-variant');
+        if (!button) {
+          console.error('Botão de remoção não encontrado');
+          return;
+        }
+        
+        // Obter o índice da variante
+        const variantIndex = parseInt(button.getAttribute('data-index'));
+        if (isNaN(variantIndex)) {
+          console.error('Índice da variante inválido');
+          return;
+        }
+        
+        // Obter a linha da tabela
+        const row = button.closest('tr');
+        if (!row) {
+          console.error('Linha da tabela não encontrada');
+          return;
+        }
+        
+        // Obter dados da variante de forma segura
+        const colorCodeInput = row.querySelector('input[name="color_code"]');
+        const sizeInput = row.querySelector('input[name="size"], select[name="size"]');
+        const referenceInput = row.querySelector('input[name="reference"]');
+        
+        const colorCode = colorCodeInput ? colorCodeInput.value : '';
+        const size = sizeInput ? sizeInput.value : '';
+        const reference = referenceInput ? referenceInput.value : '';
+        
+        // Criar descrição da variante
+        const description = `${reference || 'Sem referência'} - ${colorCode}/${size}`;
+        
+        // Atualizar modal de confirmação
+        if (variantDescription) {
+          variantDescription.textContent = description;
+        }
+        
+        // Armazenar índice para confirmação
+        variantToDelete.index = variantIndex;
+        
+        // Mostrar modal de confirmação
+        if (deleteVariantConfirmModal) {
+          deleteVariantConfirmModal.show();
+        }
+        
+      } catch (error) {
+        console.error('Erro na função handleRemoveVariant:', error);
+        showMessage('Erro ao tentar remover variante: ' + error.message, 'error');
+      }
+    }
+    
+    function confirmDeleteVariant() {
+      try {
+        if (variantToDelete.index === null || variantToDelete.index === undefined) {
+          console.error('Índice da variante para exclusão não está definido');
+          return;
+        }
+        
+        const rows = variantsTableBody.querySelectorAll('tr');
+        
+        if (variantToDelete.index >= 0 && variantToDelete.index < rows.length) {
+          const rowToRemove = rows[variantToDelete.index];
+          if (rowToRemove) {
+            console.log(`Removendo variante no índice ${variantToDelete.index}`);
+            
+            // Remover a linha
+            rowToRemove.remove();
+            
+            // Reindexar todas as variantes restantes
+            reindexAllVariants();
+            
+            showMessage('Variante excluída e referências reindexadas com sucesso', 'success');
+          } else {
+            console.error('Linha da variante não encontrada');
+            showMessage('Erro: Variante não encontrada', 'error');
+          }
+        } else {
+          console.error('Índice da variante fora dos limites:', variantToDelete.index, 'Total de linhas:', rows.length);
+          showMessage('Erro: Índice da variante inválido', 'error');
+        }
+        
+        // Limpar dados da variante a excluir
+        variantToDelete.index = null;
+        
+        // Fechar modal
+        if (deleteVariantConfirmModal) {
+          deleteVariantConfirmModal.hide();
+        }
+        
+      } catch (error) {
+        console.error('Erro na função confirmDeleteVariant:', error);
+        showMessage('Erro ao excluir variante: ' + error.message, 'error');
+        
+        // Limpar estado em caso de erro
+        variantToDelete.index = null;
+        if (deleteVariantConfirmModal) {
+          deleteVariantConfirmModal.hide();
+        }
+      }
+    }
+
+    function updateVariantIndices() {
+      const rows = variantsTableBody.querySelectorAll('tr');
+      
+      rows.forEach((row, idx) => {
+        row.setAttribute('data-index', idx);
+        
+        const removeButton = row.querySelector('.remove-variant');
+        if (removeButton) {
+          removeButton.setAttribute('data-index', idx);
+        }
+      });
+    }
+    
+    // Função para adicionar nova variante SEM preview
+    function addNewVariant() {
+      const existingRows = variantsTableBody.querySelectorAll('tr');
+      const newIndex = existingRows.length;
+      const newSequence = newIndex + 1;
+      
+      // Obter material code
+      const materialCode = getMaterialCodeFromReferences();
+      const newReference = `${materialCode}.${newSequence}`;
+      
+      console.log(`[addNewVariant] Adicionando nova variante: ${newReference} (índice ${newIndex})`);
+      
+      const supplierName = $('#edit-supplier').val() || '';
+      const supplierCode = getSupplierCode(supplierName) || "00";
+      
+      // Extrair season do primeiro código de barras existente ou usar padrão
+      let season = "23"; // Default
+      if (existingRows.length > 0) {
+          const firstBarcodeInput = existingRows[0].querySelector('input[name="barcode"]');
+          if (firstBarcodeInput && firstBarcodeInput.value) {
+              season = extractSeasonFromBarcode(firstBarcodeInput.value) || "23";
+          }
+      }
+      
+      // Gerar código de barras inicial com códigos padrão
+      const defaultColorCode = "000";
+      const defaultSizeCode = "000";
+      const initialBarcode = generateBarcode(season, supplierCode, newSequence, defaultColorCode, defaultSizeCode);
+      
+      console.log(`[addNewVariant] Código de barras inicial gerado: ${initialBarcode}`);
+      
+      const row = document.createElement('tr');
+      row.setAttribute('data-index', newIndex);
+      
+      row.innerHTML = `
+          <td>
+              <input type="text" class="form-control form-control-sm" name="reference" value="${newReference}" readonly>
+          </td>
+          <td>
+              <input type="text" class="form-control form-control-sm" name="color_code" value="" readonly>
+          </td>
+          <td>
+              ${createColorDropdown()}
+          </td>
+          <td>
+              ${createSizeDropdown()}
+          </td>
+          <td>
+              <input type="number" class="form-control form-control-sm" name="quantity" value="0" min="0">
+          </td>
+          <td>
+              <input type="number" class="form-control form-control-sm" name="unit_price" value="0" step="0.01" min="0">
+          </td>
+          <td>
+              <input type="number" class="form-control form-control-sm" name="sales_price" value="0" step="0.01" min="0">
+          </td>
+          <td>
+              <input type="text" class="form-control form-control-sm" name="barcode" value="${initialBarcode}" readonly>
+          </td>
+          <td>
+              <button type="button" class="btn btn-sm btn-danger remove-variant" data-index="${newIndex}">
+                  <i class="bx bx-trash"></i>
+              </button>
+          </td>
+      `;
+      
+      variantsTableBody.appendChild(row);
+      
+      setTimeout(() => {
+          initializeVariantSelect2();
+          
+          setTimeout(() => {
+              addVariantRowListeners(row);
+              
+              const barcodeInput = row.querySelector('input[name="barcode"]');
+              if (barcodeInput && barcodeInput.value) {
+                  barcodeInput.dataset.originalBarcode = barcodeInput.value;
+                  console.log(`[addNewVariant] Código de barras preservado como original: ${barcodeInput.value}`);
+              }
+              
+              row.style.backgroundColor = '#d4edda';
+              setTimeout(() => {
+                  row.style.backgroundColor = '';
+              }, 2000);
+              
+          }, 200);
+      }, 100);
+      
+      addRemoveVariantEventListeners();
+      
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      console.log(`[addNewVariant] Nova variante adicionada com sucesso`);
+  }
+    
+    function getMaterialCodeFromReferences() {
+      const firstReferenceInput = variantsTableBody.querySelector('input[name="reference"]');
+      if (firstReferenceInput && firstReferenceInput.value) {
+        const parts = firstReferenceInput.value.split('.');
+        return parts[0] || '';
+      }
+      
+      const materialCodeInput = document.getElementById('edit-material-code');
+      return materialCodeInput ? materialCodeInput.value : '';
+    }
+
+    function reindexVariantReferences() {
+      const rows = variantsTableBody.querySelectorAll('tr');
+      const materialCode = getMaterialCodeFromReferences();
+      
+      console.log(`Reindexando ${rows.length} variantes com material code: ${materialCode}`);
+      
+      rows.forEach((row, index) => {
+        const newSequence = index + 1;
+        const newReference = `${materialCode}.${newSequence}`;
+        
+        // Atualizar referência
+        const referenceInput = row.querySelector('input[name="reference"]');
+        if (referenceInput) {
+          const oldReference = referenceInput.value;
+          referenceInput.value = newReference;
+          console.log(`Referência atualizada: ${oldReference} -> ${newReference}`);
+        }
+        
+        // Atualizar índice do botão de remoção
+        const removeButton = row.querySelector('.remove-variant');
+        if (removeButton) {
+          removeButton.setAttribute('data-index', index);
+        }
+        
+        // Atualizar atributo data-index da linha
+        row.setAttribute('data-index', index);
+      });
+    }
+
+    // Função para reindexar códigos de barras baseado nas novas referências
+    function reindexVariantBarcodes() {
+      const rows = variantsTableBody.querySelectorAll('tr');
+      const supplierName = $('#edit-supplier').val() || '';
+      const supplierCode = getSupplierCode(supplierName);
+      
+      console.log(`Reindexando códigos de barras com fornecedor: ${supplierName} (${supplierCode})`);
+      
+      rows.forEach((row, index) => {
+        try {
+          const newSequence = index + 1;
+          
+          // Obter elementos da linha
+          const barcodeInput = row.querySelector('input[name="barcode"]');
+          const colorCodeInput = row.querySelector('input[name="color_code"]');
+          const colorNameSelect = row.querySelector('select[name="color_name"]');
+          const sizeSelect = row.querySelector('select[name="size"]');
+          
+          if (!barcodeInput) return;
+          
+          // Obter código de barras original para extrair season
+          const originalBarcode = barcodeInput.dataset.originalBarcode || barcodeInput.value;
+          const season = extractSeasonFromBarcode(originalBarcode);
+          
+          // Obter códigos atualizados
+          const colorName = colorNameSelect ? colorNameSelect.value : '';
+          const sizeValue = sizeSelect ? sizeSelect.value : '';
+          
+          const colorCode = getColorCode(colorName);
+          const sizeCode = getSizeCode(sizeValue);
+          
+          // Atualizar código da cor visualmente
+          if (colorCodeInput) {
+            colorCodeInput.value = colorCode;
+          }
+          
+          // Gerar novo código de barras
+          const newBarcode = generateBarcode(season, supplierCode, newSequence, colorCode, sizeCode);
+          
+          // Atualizar código de barras
+          const oldBarcode = barcodeInput.value;
+          barcodeInput.value = newBarcode;
+          
+          console.log(`Código de barras reindexado [${index + 1}]: ${oldBarcode} -> ${newBarcode}`);
+          
+          // Efeito visual de atualização
+          barcodeInput.classList.add('border-warning');
+          barcodeInput.style.backgroundColor = '#fff3cd';
+          
+          setTimeout(() => {
+            barcodeInput.classList.remove('border-warning');
+            barcodeInput.style.backgroundColor = '';
+            barcodeInput.classList.add('border-success');
+            barcodeInput.style.backgroundColor = '#d4edda';
+            
+            setTimeout(() => {
+              barcodeInput.classList.remove('border-success');
+              barcodeInput.style.backgroundColor = '';
+            }, 1500);
+          }, 500);
+          
+        } catch (error) {
+          console.error(`Erro ao reindexar código de barras da linha ${index}:`, error);
+        }
+      });
+    }
+
+    // Função principal para reindexação completa
+    function reindexAllVariants() {
+      console.log('=== INICIANDO REINDEXAÇÃO COMPLETA ===');
+      
+      // 1. Primeiro reindexar as referências
+      reindexVariantReferences();
+      
+      // 2. Depois reindexar os códigos de barras
+      setTimeout(() => {
+        reindexVariantBarcodes();
+        console.log('=== REINDEXAÇÃO COMPLETA CONCLUÍDA ===');
+      }, 100);
+    }
+
+    function updateAllReferencesOnMaterialCodeChange() {
+      const materialCodeInput = document.getElementById('edit-material-code');
+      
+      if (materialCodeInput) {
+        materialCodeInput.removeEventListener('input', handleMaterialCodeChange);
+        
+        materialCodeInput.addEventListener('input', handleMaterialCodeChange);
+      }
+      
+      function handleMaterialCodeChange() {
+        const newMaterialCode = this.value.trim();
+        console.log(`Material code alterado para: ${newMaterialCode}`);
+        
+        clearTimeout(window.materialCodeUpdateTimeout);
+        window.materialCodeUpdateTimeout = setTimeout(() => {
+          const variantRows = variantsTableBody.querySelectorAll('tr');
+          if (variantRows.length > 0 && newMaterialCode) {
+            updateVariantReferencesWithNewMaterialCode(newMaterialCode);
+          }
+        }, 300);
+      }
+    }
+    
+    function normalizeGender(genderValue) {
+      if (!genderValue || typeof genderValue !== 'string') {
+          return 'Homem';
+      }
+      
+      const normalizedValue = genderValue.toLowerCase().trim();
+      
+      if (normalizedValue === 'homem' || normalizedValue === 'HOMEM') {
+          return 'Homem';
+      }
+      
+      if (normalizedValue === 'senhora' || normalizedValue === 'SENHORA' || 
+          normalizedValue === 'mulher' || normalizedValue === 'MULHER' ||
+          normalizedValue === 'feminino' || normalizedValue === 'FEMININO' ||
+          normalizedValue === 'woman' || normalizedValue === 'WOMAN') {
+          return 'Senhora';
+      }
+      
+      if (normalizedValue === 'crianças' || normalizedValue === 'CRIANÇAS' ||
+          normalizedValue === 'crianca' || normalizedValue === 'CRIANCA' ||
+          normalizedValue === 'kids' || normalizedValue === 'KIDS' ||
+          normalizedValue === 'children' || normalizedValue === 'CHILDREN' ||
+          normalizedValue === 'infantil' || normalizedValue === 'INFANTIL') {
+          return 'Crianças';
+      }
+      
+      if (genderValue === 'Homem' || genderValue === 'Senhora' || genderValue === 'Crianças') {
+          return genderValue;
+      }
+      
+      return 'Homem';
+    }
+
+    function validateAndFixGender(product) {
+      if (product && product.gender) {
+          product.gender = normalizeGender(product.gender);
+      } else {
+          product.gender = 'Homem';
+      }
+      return product;
+    }
+
+    function validateGenderBeforeSave(product) {
+      const genderSelect = document.getElementById('edit-gender');
+      if (genderSelect) {
+          const selectedGender = genderSelect.value;
+          
+          // Verificar se o valor está entre os permitidos
+          const allowedGenders = ['Homem', 'Senhora', 'Crianças'];
+          
+          if (!allowedGenders.includes(selectedGender)) {
+              console.warn(`Gender inválido detectado: "${selectedGender}". Corrigindo para "Homem"`);
+              genderSelect.value = 'Homem';
+              product.gender = 'Homem';
+          } else {
+              product.gender = selectedGender;
+          }
+      }
+      
+      return product;
+    }
+    
+
+    function debugWarehouseIntegrated() {
+      console.log("=== DEBUG WAREHOUSE E INTEGRATED ===");
+      
+      // Verificar se os elementos existem
+      const warehouseEl = document.getElementById('edit-warehouse');
+      const integratedEl = document.getElementById('edit-integrated');
+      
+      console.log("Elemento warehouse:", warehouseEl);
+      console.log("Elemento integrated:", integratedEl);
+      
+      if (warehouseEl) {
+        console.log("Warehouse - value:", `"${warehouseEl.value}"`);
+        console.log("Warehouse - type:", typeof warehouseEl.value);
+        console.log("Warehouse - length:", warehouseEl.value?.length);
+        console.log("Warehouse - HTML:", warehouseEl.outerHTML);
+      } else {
+        console.error("❌ Elemento edit-warehouse NÃO ENCONTRADO!");
+      }
+      
+      if (integratedEl) {
+        console.log("Integrated - value:", `"${integratedEl.value}"`);
+        console.log("Integrated - type:", typeof integratedEl.value);
+        console.log("Integrated - length:", integratedEl.value?.length);
+        console.log("Integrated - HTML:", integratedEl.outerHTML);
+      } else {
+        console.error("❌ Elemento edit-integrated NÃO ENCONTRADO!");
+      }
+      
+      console.log("=== FIM DEBUG ===");
+    }
+
+    function getWarehouseIntegratedValues() {
+      console.log("=== OBTENDO VALORES WAREHOUSE E INTEGRATED ===");
+      
+      const warehouseEl = document.getElementById('edit-warehouse');
+      const integratedEl = document.getElementById('edit-integrated');
+      
+      let warehouseValue = '1';
+      let integratedValue = '0';
+      
+      if (warehouseEl) {
+        console.log(`Warehouse elemento encontrado: "${warehouseEl.value}"`);
+        warehouseValue = warehouseEl.value || '1';
+      } else {
+        console.error("❌ Elemento warehouse não encontrado! Usando default '1'");
+      }
+      
+      if (integratedEl) {
+        console.log(`Integrated elemento encontrado: "${integratedEl.value}"`);
+        integratedValue = integratedEl.value || '0';
+      } else {
+        console.error("❌ Elemento integrated não encontrado! Usando default '0'");
+      }
+      
+      console.log(`Warehouse final: "${warehouseValue}"`);
+      console.log(`Integrated final: "${integratedValue}"`);
+      
+      return {
+        warehouse: warehouseValue,
+        integrated: integratedValue
+      };
+    }
+
+    function debugAllFormValues() {
+      console.log("=== DEBUG COMPLETO DOS VALORES DO FORM ===");
+      
+      // Campos principais
+      const fields = [
+        'edit-material-code', 'edit-name', 'edit-composition', 
+        'edit-category', 'edit-gender', 'edit-brand', 
+        'edit-supplier', 'edit-date', 'edit-warehouse', 'edit-integrated'
+      ];
+      
+      fields.forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element) {
+          console.log(`${fieldId}:`, {
+            value: element.value,
+            type: typeof element.value,
+            stringified: JSON.stringify(element.value),
+            length: element.value?.length
+          });
+        } else {
+          console.error(`❌ Campo ${fieldId} não encontrado`);
+        }
+      });
+      
+      // Select2 fields
+      console.log("Select2 values:");
+      console.log("Category:", $('#edit-category').val());
+      console.log("Brand:", $('#edit-brand').val());
+      console.log("Supplier:", $('#edit-supplier').val());
+      
+      // Variantes
+      const variantRows = document.querySelectorAll('#variants-table-body tr');
+      console.log(`Total de variantes: ${variantRows.length}`);
+      
+      variantRows.forEach((row, index) => {
+        const rowData = {};
+        row.querySelectorAll('input, select').forEach(input => {
+          rowData[input.name] = {
+            value: input.value,
+            type: typeof input.value
+          };
+        });
+        console.log(`Variante ${index + 1}:`, rowData);
+      });
+      
+      console.log("=== FIM DEBUG ===");
+    }
+
+    async function saveProduct() {
+      if (currentProductIndex === null) {
+        showMessage('Produto não encontrado', 'error');
+        return;
+      }
+      
+      try {
+        console.log("=== INÍCIO SAVE PRODUCT ===");
+        
+        debugAllFormValues();
+        
+        loadingOverlay.classList.remove('d-none');
+        loadingStatus.textContent = 'Salvando alterações...';
+        
+        const warehouseElement = document.getElementById('edit-warehouse');
+        const integratedElement = document.getElementById('edit-integrated');
+        
+        // Obter valores RAW (sem conversões)
+        let warehouseRaw = warehouseElement ? warehouseElement.value : '1';
+        let integratedRaw = integratedElement ? integratedElement.value : '0';
+        
+        console.log("Valores RAW:", { warehouseRaw, integratedRaw });
+        
+        // Garantir que são strings válidas
+        let warehouseValue = String(warehouseRaw || '1').trim();
+        let integratedValue = String(integratedRaw || '0').trim();
+        
+        // Validação extra
+        if (warehouseValue === '' || warehouseValue === 'null' || warehouseValue === 'undefined' || warehouseValue === 'NaN') {
+          warehouseValue = '1';
+        }
+        
+        if (integratedValue === '' || integratedValue === 'null' || integratedValue === 'undefined' || integratedValue === 'NaN') {
+          integratedValue = '0';
+        }
+        
+        if (integratedValue !== '0' && integratedValue !== '1') {
+          integratedValue = '0';
+        }
+        
+        console.log("Valores limpos:", { warehouseValue, integratedValue });
+        
+        // Função sanitizadora ultra-segura
+        function ultraSafeValue(value, fieldType = 'string', defaultValue = '') {
+          console.log(`Sanitizando: ${value} (tipo: ${fieldType})`);
+          
+          if (value === null || value === undefined || 
+              value === 'null' || value === 'undefined' || 
+              value === 'NaN' || value === '') {
+            console.log(`Valor problemático detectado, usando default: ${defaultValue}`);
+            return defaultValue;
+          }
+          
+          if (fieldType === 'number') {
+            const stringValue = String(value).replace(',', '.');
+            const parsed = parseFloat(stringValue);
+            const result = isNaN(parsed) ? (defaultValue || 0) : parsed;
+            console.log(`Número sanitizado: ${value} -> ${result}`);
+            return result;
+          }
+          
+          const result = String(value).trim();
+          console.log(`String sanitizada: ${value} -> ${result}`);
+          return result;
+        }
+
+        // Criar produto limpo
+        let updatedProduct = {
+          material_code: ultraSafeValue(document.getElementById('edit-material-code')?.value, 'string', ''),
+          name: ultraSafeValue(document.getElementById('edit-name')?.value, 'string', ''),
+          composition: ultraSafeValue(document.getElementById('edit-composition')?.value, 'string', ''),
+          category: ultraSafeValue($('#edit-category').val(), 'string', ''),
+          gender: normalizeGender(ultraSafeValue(document.getElementById('edit-gender')?.value, 'string', 'Homem')),
+          brand: ultraSafeValue($('#edit-brand').val(), 'string', ''),
+          supplier: ultraSafeValue(getSupplierValue(), 'string', ''),
+          date: ultraSafeValue(document.getElementById('edit-date')?.value, 'string', ''),
+          warehouse: warehouseValue,    // STRING SEGURA
+          integrated: integratedValue,  // STRING SEGURA
+          details: []
+        };
+        
+        // Processar variantes
+        const variantRows = variantsTableBody.querySelectorAll('tr');
+        
+        variantRows.forEach((row, index) => {
+          try {
+            const variant = {
+              reference: ultraSafeValue(row.querySelector('input[name="reference"]')?.value, 'string', ''),
+              color_code: ultraSafeValue(row.querySelector('input[name="color_code"]')?.value, 'string', ''),
+              color_name: ultraSafeValue(row.querySelector('select[name="color_name"]')?.value, 'string', ''),
+              size: ultraSafeValue(row.querySelector('select[name="size"]')?.value, 'string', ''),
+              quantity: ultraSafeValue(row.querySelector('input[name="quantity"]')?.value, 'number', 0),
+              unit_price: ultraSafeValue(row.querySelector('input[name="unit_price"]')?.value, 'number', 0),
+              sales_price: ultraSafeValue(row.querySelector('input[name="sales_price"]')?.value, 'number', 0),
+              barcode: ultraSafeValue(row.querySelector('input[name="barcode"]')?.value, 'string', '')
+            };
+            
+            updatedProduct.details.push(variant);
+            
+          } catch (variantError) {
+            console.error(`Erro na variante ${index + 1}:`, variantError);
+            updatedProduct.details.push({
+              reference: '', color_code: '', color_name: '', size: '',
+              quantity: 0, unit_price: 0, sales_price: 0, barcode: ''
+            });
+          }
+        });
+        
+        updatedProduct = validateGenderBeforeSave(updatedProduct);
+        
+        console.log('[saveProduct] Produto final limpo:', updatedProduct);
+
+        const requestPayload = {
+          action: 'edit_product',
+          productIndex: currentProductIndex,
+          product: updatedProduct
+        };
+
+        console.log("Payload SIMPLES:", requestPayload);
+
+        // Teste do JSON
+        try {
+          const jsonString = JSON.stringify(requestPayload);
+          console.log("✅ JSON válido, length:", jsonString.length);
+          
+          if (jsonString.includes('NaN')) {
+            throw new Error('JSON ainda contém NaN');
+          }
+          
+        } catch (jsonError) {
+          console.error("❌ Erro no JSON:", jsonError);
+          showMessage('Erro ao preparar dados para envio', 'error');
+          return;
+        }
+
+        // Enviar requisição
+        const response = await fetch('', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          },
+          body: JSON.stringify(requestPayload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.error) {
+          throw new Error(data.error || 'Erro ao salvar alterações');
+        }
+
+        if (data.success) {
+          if (currentProductIndex >= 0 && currentProductIndex < productsData.length) {
+            productsData[currentProductIndex] = updatedProduct;
+            console.log(`Produto ${currentProductIndex} atualizado localmente`);
+          }
+          
+          saveToSessionStorage();
+          showMessage(data.message || 'Produto atualizado com sucesso', 'success');
+          
+          setTimeout(() => {
+            window.location.href = '{% url "aitigos" %}';
+          }, 1500);
+        }
+            
+      } catch (error) {
+        console.error('❌ ERRO FINAL:', error);
+        showMessage(`Erro ao salvar: ${error.message}`, 'error');
+      } finally {
+        loadingOverlay.classList.add('d-none');
+        console.log("=== FIM SAVE PRODUCT ===");
+      }
+    }
+
+    function updateSupplierValue(newSupplierValue) {
+      const hiddenField = document.getElementById('edit-supplier-hidden');
+      const selectField = document.getElementById('edit-supplier');
+      
+      if (hiddenField) {
+        hiddenField.value = newSupplierValue || '';
+      }
+      
+      if (selectField) {
+        selectField.innerHTML = '';
+        const option = document.createElement('option');
+        option.value = newSupplierValue || '';
+        option.textContent = newSupplierValue || 'Sem fornecedor definido';
+        selectField.appendChild(option);
+      }
+      
+      console.log('Fornecedor atualizado para:', newSupplierValue);
+    }
+
+    function getCsrfToken() {
+      const csrfCookie = document.cookie.split(';').find(cookie => cookie.trim().startsWith('csrftoken='));
+      if (csrfCookie) {
+        return csrfCookie.split('=')[1];
+      }
+      
+      const csrfElement = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      if (csrfElement) {
+        return csrfElement.value;
+      }
+      
+      return '';
+    }
+    
+    function showMessage(message, type = 'error') {
+      alertMessage.textContent = message;
+      alertMessage.classList.remove('d-none', 'alert-danger', 'alert-success');
+      
+      if (type === 'success') {
+        alertMessage.classList.add('alert-success');
+      } else {
+        alertMessage.classList.add('alert-danger');
+      }
+      
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      if (type === 'success') {
+        setTimeout(() => {
+          alertMessage.classList.add('d-none');
+        }, 5000);
+      }
+    }
+    
+    function setupEventListeners() {
+      addVariantBtn.addEventListener('click', addNewVariant);
+      saveProductBtn.addEventListener('click', saveProduct);
+      cancelBtn.addEventListener('click', () => {
+        window.location.href = '{% url "aitigos" %}';
+      });
+      confirmDeleteVariantBtn.addEventListener('click', confirmDeleteVariant);
+    }
+    
+    function getSupplierValue() {
+      // Tentar obter do campo hidden primeiro
+      const hiddenField = document.getElementById('edit-supplier-hidden');
+      if (hiddenField && hiddenField.value) {
+        return hiddenField.value.trim();
+      }
+      
+      // Fallback para o select desabilitado
+      const supplierSelect = document.getElementById('edit-supplier');
+      if (supplierSelect && supplierSelect.value) {
+        return supplierSelect.value.trim();
+      }
+      
+      // Se nenhum valor, retornar string vazia (não null)
+      return '';
+    }
+
+    function initialize() {
+      addBarcodeStyles();
+      
+      if (loadCurrentProduct()) {
+        if (populateForm()) {
+          initializeSupplierCache();
+          
+          setupEventListeners();
+          
+          updateAllReferencesOnMaterialCodeChange();
+          
+          setupTabChangeListeners();
+          
+          setTimeout(() => {
+            console.log('Sistema de atualização em tempo real inicializado');
+            setupRealtimeBarcodeUpdates();
+          }, 1000);
+        } else {
+          showMessage('Erro ao carregar dados do produto', 'error');
+        }
+      } else {
+        showMessage('Produto não encontrado. Retornando para a lista.', 'error');
+        
+        setTimeout(() => {
+          window.location.href = '{% url "aitigos" %}';
+        }, 2000);
+      }
+    }
+    
+    initialize();
+  });
+</script>
+{% endblock %}z

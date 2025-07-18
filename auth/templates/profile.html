@@ -1,0 +1,128 @@
+{% extends layout_path %}
+
+{% load static %}
+{% load i18n %}
+
+{% block title %}Perfil{% endblock %}
+
+{% block vendor_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-bs5/datatables.bootstrap5.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/sweetalert2/sweetalert2.css' %}" />
+{% endblock vendor_css %}
+
+{% block vendor_js %}
+{{ block.super }}
+<script src="{% static 'vendor/libs/sweetalert2/sweetalert2.js' %}"></script>
+{% endblock vendor_js %}
+
+{% block content %}
+<div class="container-xxl flex-grow-1 container-p-y">
+  <h4 class="py-3 mb-4"><span class="text-muted fw-light">Conta /</span> Meu Perfil</h4>
+
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card mb-4">
+        <h5 class="card-header">Detalhes do Perfil</h5>
+        <!-- Account -->
+        <div class="card-body">
+          <div class="d-flex align-items-start align-items-sm-center gap-4 mb-4">
+            <img
+              src="{% static 'img/avatars/user.png' %}"
+              alt="user-avatar"
+              class="d-block rounded"
+              height="100"
+              width="100"
+            />
+            <div>
+              <h5 class="mb-1">{{ user.first_name|default:user.username }} {{ user.last_name }}</h5>
+              <p class="text-muted mb-0">{{ user.email }}</p>
+              <small class="text-muted">Plano Nivel 02</small>
+            </div>
+          </div>
+        </div>
+        <hr class="my-0" />
+        <div class="card-body">
+          <div class="row">
+            <div class="mb-3 col-md-6">
+              <label class="form-label fw-semibold">Nome</label>
+              <p class="form-control-plaintext">{{ user.first_name|default:"Não informado" }}</p>
+            </div>
+            <div class="mb-3 col-md-6">
+              <label class="form-label fw-semibold">Sobrenome</label>
+              <p class="form-control-plaintext">{{ user.last_name|default:"Não informado" }}</p>
+            </div>
+            <div class="mb-3 col-md-6">
+              <label class="form-label fw-semibold">E-mail</label>
+              <p class="form-control-plaintext">{{ user.email }}</p>
+            </div>
+            <div class="mb-3 col-md-6">
+              <label class="form-label fw-semibold">Nome de utilizador</label>
+              <p class="form-control-plaintext">{{ user.username }}</p>
+            </div>
+          </div>
+          <div class="row">
+            <div class="mb-3 col-md-6">
+              <label class="form-label fw-semibold">Status da Conta</label>
+              <div>
+                {% if profile.is_verified %}
+                  <span class="badge bg-success">Verificada</span>
+                {% else %}
+                  <span class="badge bg-warning">Não Verificada</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="mb-3 col-md-6">
+              <label class="form-label fw-semibold">Membro desde</label>
+              <p class="form-control-plaintext">{{ profile.created_at|date:"d/m/Y H:i" }}</p>
+            </div>
+          </div>
+        </div>
+        <!-- /Account -->
+      </div>
+      
+      <!-- Informações das Integrações -->
+      <div class="card">
+        <h5 class="card-header">Integrações Ativas</h5>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Empresa Moloni Selecionada</label>
+              <div>
+                {% if profile.selected_moloni_company %}
+                  <span class="badge bg-success">{{ profile.selected_moloni_company }}</span>
+                {% else %}
+                  <span class="text-muted">Nenhuma empresa selecionada</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Loja Shopify Selecionada</label>
+              <div>
+                {% if profile.selected_shopify_store %}
+                  <span class="badge bg-success">{{ profile.selected_shopify_store }}</span>
+                {% else %}
+                  <span class="text-muted">Nenhuma loja selecionada</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          {% if profile.selected_moloni_company or profile.selected_shopify_store %}
+            <hr class="my-3">
+            <div class="row">
+              <div class="col-12">
+                <small class="text-muted">
+                  <i class="bx bx-info-circle me-1"></i>
+                  Para alterar as integrações, acesse a seção "Definições".
+                </small>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

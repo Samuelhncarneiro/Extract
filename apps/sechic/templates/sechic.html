@@ -1,0 +1,1566 @@
+{% extends layout_path %}
+
+{% load static %}
+{% load i18n %}
+
+{% block title %}Sechic Reference Data Management{% endblock %}
+
+{% block vendor_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-bs5/datatables.bootstrap5.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.css' %}" />
+<link rel="stylesheet" href="{% static 'vendor/libs/sweetalert2/sweetalert2.css' %}" />
+{% endblock vendor_css %}
+
+{% block vendor_js %}
+{{ block.super }}
+<script src="{% static 'vendor/libs/datatables-bs5/datatables-bootstrap5.js' %}"></script>
+<script src="{% static 'vendor/libs/sweetalert2/sweetalert2.js' %}"></script>
+{% endblock vendor_js %}
+
+{% block content %}
+<div class="container-xxl flex-grow-1 container-p-y">
+  <h4 class="py-3 mb-4">
+    <span class="text-muted fw-light">Dados /</span> Gestão
+  </h4>
+
+{% if request.user.profile.selected_moloni_company %}
+  <div class="alert alert-info mb-4">
+    <i class="bx bx-info-circle me-2"></i>
+    <strong>Empresa:</strong>
+    {% if request.user.profile.selected_moloni_company %}
+      {{ request.user.profile.selected_moloni_company }}
+    {% else %}
+      Nenhuma empresa selecionada
+    {% endif %}
+  </div>
+
+  <!-- Tabs with different data types -->
+  <div class="card">
+    <div class="card-header">
+      <ul class="nav nav-tabs card-header-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#colors" role="tab" aria-selected="true">
+            Colors <span class="badge rounded-pill badge-center bg-primary"> {{ colors_count }}</span>
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#sizes" role="tab" aria-selected="false">
+            Sizes <span class="badge rounded-pill badge-center bg-info">{{ sizes_count }}</span>
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#suppliers" role="tab" aria-selected="false">
+            Fornencedores <span class="badge rounded-pill badge-center bg-success">{{ suppliers_count }}</span>
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#categories" role="tab" aria-selected="false">
+            Categories <span class="badge rounded-pill badge-center bg-info">{{ categories_count }}</span>
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#brands" role="tab" aria-selected="false">
+            Brands <span class="badge rounded-pill badge-center bg-info">{{ brands_count }}</span>
+          </button>
+        </li>
+      </ul>
+    </div>
+
+    <div class="tab-content">
+      <!-- Colors Tab -->
+      <div class="tab-pane fade show active" id="colors" role="tabpanel">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Cores</h5>
+          <button type="button" class="btn btn-primary" id="addColorBtn">
+            <i class="bx bx-plus me-sm-1"></i> Adicionar nova cor
+          </button>
+        </div>
+        <div class="card-datatable table-responsive">
+          <table class="datatables-colors table border-top">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="colorsTableBody">
+              <!-- Colors will be loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sizes Tab -->
+      <div class="tab-pane fade" id="sizes" role="tabpanel">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Tamanhos</h5>
+          <button type="button" class="btn btn-primary" id="addSizeBtn">
+            <i class="bx bx-plus me-sm-1"></i> Add New Size
+          </button>
+        </div>
+        <div class="card-datatable table-responsive">
+          <table class="datatables-sizes table border-top">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Value</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sizesTableBody">
+              <!-- Sizes will be loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Suppliers Tab -->
+      <div class="tab-pane fade" id="suppliers" role="tabpanel">
+        <div class="card-datatable table-responsive">
+          <table class="datatables-suppliers table border-top">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nome</th>
+                <th>Marcação selecionada</th>
+                <th>Total Marcações</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="suppliersTableBody">
+              <!-- Suppliers will be loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Categories Tab -->
+      <div class="tab-pane fade" id="categories" role="tabpanel">
+        <div class="card-datatable table-responsive">
+          <table class="datatables-categories table border-top">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="categoriesTableBody">
+              <!-- Categories will be loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Brands Tab -->
+      <div class="tab-pane fade" id="brands" role="tabpanel">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Marcas</h5>
+          <button type="button" class="btn btn-primary" id="addBrandBtn">
+            <i class="bx bx-plus me-sm-1"></i> Add New Brand
+          </button>
+        </div>
+        <div class="card-datatable table-responsive">
+          <table class="datatables-brands table border-top">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="brandsTableBody">
+              <!-- Brands will be loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% else %}
+  <!-- No company selected message -->
+  <div class="card">
+    <div class="card-body text-center py-5">
+      <div class="mb-4">
+        <i class="bx bx-building" style="font-size: 4rem; color: #6c757d;"></i>
+      </div>
+      <h4 class="card-title mb-3">Nenhuma Empresa Selecionada</h4>
+      <p class="card-text text-muted mb-4">
+        Para acessar os dados de referência, você precisa selecionar uma empresa primeiro.
+        <br>
+        Por favor, vá às configurações do seu perfil e selecione uma empresa.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if request.user.profile.selected_moloni_company %}
+
+<!-- Color Modal -->
+<div class="modal fade" id="colorModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="colorModalTitle">Add Color</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="colorForm">
+          <input type="hidden" id="colorAction" value="create">
+          <div class="mb-3">
+            <label for="colorCode" class="form-label">Code</label>
+            <input type="text" class="form-control" id="colorCode" maxlength="3" required>
+            <div class="form-text">Code must be unique, max 3 characters</div>
+          </div>
+          <div class="mb-3">
+            <label for="colorName" class="form-label">Name</label>
+            <input type="text" class="form-control" id="colorName" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveColorBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Size Modal -->
+<div class="modal fade" id="sizeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="sizeModalTitle">Add Size</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="sizeForm">
+          <input type="hidden" id="sizeAction" value="create">
+          <div class="mb-3">
+            <label for="sizeCode" class="form-label">Code</label>
+            <input type="text" class="form-control" id="sizeCode" maxlength="3" required>
+            <div class="form-text">Code must be unique, max 3 characters</div>
+          </div>
+          <div class="mb-3">
+            <label for="sizeValue" class="form-label">Value</label>
+            <input type="text" class="form-control" id="sizeValue" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveSizeBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Category Modal -->
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="categoryModalTitle">Add Category</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="categoryForm">
+          <input type="hidden" id="categoryAction" value="create">
+          <input type="hidden" id="categoryOriginalName">
+          <div class="mb-3">
+            <label for="categoryName" class="form-label">Name</label>
+            <input type="text" class="form-control" id="categoryName" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveCategoryBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Brand Modal -->
+<div class="modal fade" id="brandModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="brandModalTitle">Add Brand</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="brandForm">
+          <input type="hidden" id="brandAction" value="create">
+          <input type="hidden" id="brandOriginalName">
+          <div class="mb-3">
+            <label for="brandName" class="form-label">Name</label>
+            <input type="text" class="form-control" id="brandName" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveBrandBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Supplier Modal -->
+<div class="modal fade" id="supplierModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="supplierModalTitle">Edit Supplier</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="supplierForm">
+          <input type="hidden" id="supplierAction" value="update">
+          <input type="hidden" id="supplierCode">
+          <input type="hidden" id="activeMarkupId">
+          <input type="hidden" id="pendingActiveMarkupId">
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="supplierName" class="form-label">Name</label>
+                <input type="text" class="form-control" id="supplierName" disabled>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="supplierCodeDisplay" class="form-label">Code</label>
+                <input type="text" class="form-control" id="supplierCodeDisplay" disabled>
+              </div>
+            </div>
+          </div>      
+          <div class="mb-4">
+            <label for="supplierMarkup" class="form-label">New Markup</label>
+            <div class="input-group">
+              <input type="number" class="form-control" id="supplierMarkup" step="0.01" min="0" placeholder="Enter markup value">
+              <button type="button" class="btn btn-success" id="addMarkupBtn">
+                <i class="bx bx-plus me-1"></i>Add Markup
+              </button>
+            </div>
+            <div class="form-text">Novo markup será automaticamente ativo</div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Select Active Markup</label>
+            <div class="form-text mb-2">Clique num markup para o selecionar como ativo</div>
+            <div id="markupHistory" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+              <!-- Histórico será carregado dinamicamente -->
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="saveChangesBtn" style="display: none;">
+          <i class="bx bx-save me-1"></i>Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirm Delete</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="deleteItemText">Are you sure you want to delete this item?</p>
+        <p class="fw-bold" id="deleteItemName"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+
+<!-- CSRF Token -->
+{% csrf_token %}
+{% endblock %}
+
+{% block page_js %}
+{% if request.user.profile.selected_moloni_company %}
+<script>
+$(function() {
+  'use strict';
+
+  // Variables to store delete information
+  let deleteType = '';
+  let deleteId = '';
+
+  // DataTables instances
+  let colorsDt, sizesDt, suppliersDt, categoriesDt, brandsDt;
+
+  // URLs for CRUD operations
+  // Colors
+  const colorCreateUrl = '{% url "color_create" %}';
+  const colorDetailUrlBase = '{% url "color_detail" code="CODE" %}';
+  const colorUpdateUrlBase = '{% url "color_update" code="CODE" %}';
+  const colorDeleteUrlBase = '{% url "color_delete" code="CODE" %}';
+
+  // Sizes
+  const sizeCreateUrl = '{% url "size_create" %}';
+  const sizeDetailUrlBase = '{% url "size_detail" code="CODE" %}';
+  const sizeUpdateUrlBase = '{% url "size_update" code="CODE" %}';
+  const sizeDeleteUrlBase = '{% url "size_delete" code="CODE" %}';
+
+  // Brands
+  const brandCreateUrl = '{% url "brand_create" %}';
+  const brandDetailUrlBase = '{% url "brand_detail" name="NAME" %}';
+  const brandUpdateUrlBase = '{% url "brand_update" name="NAME" %}';
+  const brandDeleteUrlBase = '{% url "brand_delete" name="NAME" %}';
+
+  const categoryDetailUrlBase = '{% url "category_detail" name="NAME" %}';
+  const categoryUpdateUrlBase = '{% url "category_update" name="NAME" %}';
+
+  const supplierDetailUrlBase = '{% url "supplier_detail" code="CODE" %}';
+  const supplierAddMarkupUrlBase = '{% url "supplier_add_markup" code="CODE" %}';
+  const supplierSetActiveMarkupUrlBase = '{% url "supplier_set_active_markup" code="CODE" %}';
+  
+  function getSupplierSetActiveMarkupUrl(code) {
+    return supplierSetActiveMarkupUrlBase.replace('CODE', code);
+  }
+  function getSupplierDetailUrl(code) {
+    return supplierDetailUrlBase.replace('CODE', code);
+  }
+  function getSupplierAddMarkupUrl(code) {
+    return supplierAddMarkupUrlBase.replace('CODE', code);
+  }
+  function getColorDetailUrl(code) {
+    return colorDetailUrlBase.replace('CODE', code);
+  }
+  function getColorUpdateUrl(code) {
+    return colorUpdateUrlBase.replace('CODE', code);
+  }
+  function getColorDeleteUrl(code) {
+    return colorDeleteUrlBase.replace('CODE', code);
+  }
+
+  // Sizes
+  function getSizeDetailUrl(code) {
+    return sizeDetailUrlBase.replace('CODE', code);
+  }
+  function getSizeUpdateUrl(code) {
+    return sizeUpdateUrlBase.replace('CODE', code);
+  }
+  function getSizeDeleteUrl(code) {
+    return sizeDeleteUrlBase.replace('CODE', code);
+  }
+
+  // Categories
+  function getCategoryDetailUrl(name) {
+    return categoryDetailUrlBase.replace('NAME', encodeURIComponent(name));
+  }
+  function getCategoryUpdateUrl(name) {
+    return categoryUpdateUrlBase.replace('NAME', encodeURIComponent(name));
+  }
+  function getCategoryDeleteUrl(name) {
+    return categoryDeleteUrlBase.replace('NAME', encodeURIComponent(name));
+  }
+
+  // Brands
+  function getBrandDetailUrl(name) {
+    return brandDetailUrlBase.replace('NAME', encodeURIComponent(name));
+  }
+  function getBrandUpdateUrl(name) {
+    return brandUpdateUrlBase.replace('NAME', encodeURIComponent(name));
+  }
+  function getBrandDeleteUrl(name) {
+    return brandDeleteUrlBase.replace('NAME', encodeURIComponent(name));
+  }
+
+  // Suppliers
+  function getSupplierDetailUrl(code) {
+    return supplierDetailUrlBase.replace('CODE', code);
+  }
+  function getSupplierUpdateUrl(code) {
+    return supplierUpdateUrlBase.replace('CODE', code);
+  }
+  function getSupplierDeleteUrl(code) {
+    return supplierDeleteUrlBase.replace('CODE', code);
+  }
+
+  // Function to get CSRF token
+  function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+  }
+
+  // Show success notification
+  function showSuccess(message) {
+    Swal.fire({
+      icon: 'success',
+      title: 'Sucesso',
+      text: message,
+      timer: 1500,
+      showConfirmButton: false
+    });
+  }
+
+  // Show error notification
+  function showError(message) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Erro',
+      text: message || 'Ocorreu um erro.'
+    });
+  }
+
+  // Functions to update tables
+  function refreshColorsTable(colors) {
+    if (colorsDt) {
+      colorsDt.destroy();
+    }
+    
+    const tableBody = $('#colorsTableBody');
+    tableBody.empty();
+    
+    colors.forEach(function(color) {
+      tableBody.append(`
+        <tr>
+          <td>${color.code}</td>
+          <td>${color.name}</td>
+          <td>
+            <div class="d-inline-flex">
+              <button type="button" class="btn btn-sm btn-icon btn-outline-primary me-1 edit-color" data-code="${color.code}">
+                <i class="bx bx-edit-alt"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-icon btn-outline-danger delete-color" data-code="${color.code}" data-name="${color.name}">
+                <i class="bx bx-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `);
+    });
+    
+    colorsDt = $('.datatables-colors').DataTable({
+      dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+      lengthMenu: [10, 25, 50, 75, 100],
+      responsive: true
+    });
+    
+    $('.nav-tabs .nav-link[data-bs-target="#colors"] .badge').text(colors.length);
+  }
+
+  function loadSupplierDetails(code) {
+    $.ajax({
+        url: getSupplierDetailUrl(code),
+        method: 'GET',
+        cache: false,
+        data: { _t: new Date().getTime() },
+        success: function(data) {
+            console.log('📋 Detalhes carregados (edição):', data);
+            
+            $('#supplierAction').val('update');
+            $('#supplierCode').val(data.code);
+            $('#supplierCodeDisplay').val(data.code);
+            $('#supplierName').val(data.name);
+            $('#supplierMarkup').val('');
+            
+            const activeMarkupId = data.active_markup_id || '';
+            $('#activeMarkupId').val(activeMarkupId);
+            $('#pendingActiveMarkupId').val(activeMarkupId);
+            
+            console.log('🎯 IDs (edição) - Active:', activeMarkupId, 'Pending:', activeMarkupId);
+            
+            $('#supplierModalTitle').text('Manage Markups - ' + data.name);
+            $('#saveChangesBtn').hide();
+            
+            loadMarkupHistory(data.markups || [], activeMarkupId);
+        },
+        error: function(err) {
+            console.error('❌ Erro ao buscar detalhes:', err);
+            showError('Falha ao obter detalhes do fornecedor: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+        }
+    });
+  }
+
+
+  function refreshSizesTable(sizes) {
+    if (sizesDt) {
+      sizesDt.destroy();
+    }
+    
+    const tableBody = $('#sizesTableBody');
+    tableBody.empty();
+    
+    sizes.forEach(function(size) {
+      tableBody.append(`
+        <tr>
+          <td>${size.code}</td>
+          <td>${size.value}</td>
+          <td>
+            <div class="d-inline-flex">
+              <button type="button" class="btn btn-sm btn-icon btn-outline-primary me-1 edit-size" data-code="${size.code}">
+                <i class="bx bx-edit-alt"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-icon btn-outline-danger delete-size" data-code="${size.code}" data-name="${size.value}">
+                <i class="bx bx-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `);
+    });
+    
+    sizesDt = $('.datatables-sizes').DataTable({
+      dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+      lengthMenu: [10, 25, 50, 75, 100],
+      responsive: true
+    });
+    
+    $('.nav-tabs .nav-link[data-bs-target="#sizes"] .badge').text(sizes.length);
+  }
+
+  
+  function refreshSuppliersTable(suppliers) {
+    if (suppliersDt) {
+      suppliersDt.destroy();
+    }
+    
+    const tableBody = $('#suppliersTableBody');
+    tableBody.empty();
+    
+    suppliers.forEach(function(supplier) {
+      const currentMarkup = supplier.current_markup !== null ? supplier.current_markup : '-';  // SEM %
+      const markupCount = supplier.markup_count || 0;
+      
+      tableBody.append(`
+        <tr>
+          <td>${supplier.code}</td>
+          <td>${supplier.name}</td>
+          <td>${currentMarkup}</td>
+          <td>
+            <span class="badge bg-info">${markupCount} markup${markupCount !== 1 ? 's' : ''}</span>
+          </td>
+          <td>
+            <div class="d-inline-flex">
+              <button type="button" class="btn btn-sm btn-icon btn-outline-primary me-1 edit-supplier" data-code="${supplier.code}">
+                <i class="bx bx-edit-alt"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `);
+    });
+    
+    suppliersDt = $('.datatables-suppliers').DataTable({
+      dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+      lengthMenu: [10, 25, 50, 75, 100],
+      responsive: true
+    });
+    
+    $('.nav-tabs .nav-link[data-bs-target="#suppliers"] .badge').text(suppliers.length);
+  }
+
+
+  function refreshCategoriesTable(categories) {
+    if (categoriesDt) {
+      categoriesDt.destroy();
+    }
+    
+    const tableBody = $('#categoriesTableBody');
+    tableBody.empty();
+    
+    categories.forEach(function(category) {
+      tableBody.append(`
+        <tr>
+          <td>${category.name}</td>
+          <td>
+            <div class="d-inline-flex">
+              <button type="button" class="btn btn-sm btn-icon btn-outline-primary me-1 edit-category" data-name="${category.name}">
+                <i class="bx bx-edit-alt"></i>
+              </button>
+              <!-- Botão eliminar REMOVIDO -->
+            </div>
+          </td>
+        </tr>
+      `);
+    });
+    
+    categoriesDt = $('.datatables-categories').DataTable({
+      dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+      lengthMenu: [10, 25, 50, 75, 100],
+      responsive: true
+    });
+    
+    $('.nav-tabs .nav-link[data-bs-target="#categories"] .badge').text(categories.length);
+  }
+
+  function refreshBrandsTable(brands) {
+    if (brandsDt) {
+      brandsDt.destroy();
+    }
+    
+    const tableBody = $('#brandsTableBody');
+    tableBody.empty();
+    
+    brands.forEach(function(brand) {
+      tableBody.append(`
+        <tr>
+          <td>${brand.name}</td>
+          <td>
+            <div class="d-inline-flex">
+              <button type="button" class="btn btn-sm btn-icon btn-outline-primary me-1 edit-brand" data-name="${brand.name}">
+                <i class="bx bx-edit-alt"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-icon btn-outline-danger delete-brand" data-name="${brand.name}">
+                <i class="bx bx-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `);
+    });
+    
+    brandsDt = $('.datatables-brands').DataTable({
+      dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>t<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+      lengthMenu: [10, 25, 50, 75, 100],
+      responsive: true
+    });
+    
+    $('.nav-tabs .nav-link[data-bs-target="#brands"] .badge').text(brands.length);
+  }
+
+  // Initial data loading functions with cache prevention
+  function loadColors() {
+    $.ajax({
+      url: '{% url "get_colors" %}',
+      method: 'GET',
+      cache: false,
+      data: { _t: new Date().getTime() },
+      success: function(data) {
+        refreshColorsTable(data.colors);
+      },
+      error: function(err) {
+        console.error('Erro ao carregar cores:', err);
+        showError('Falha ao carregar cores');
+      }
+    });
+  }
+
+  function loadSizes() {
+    $.ajax({
+      url: '{% url "get_sizes" %}',
+      method: 'GET',
+      cache: false,
+      data: { _t: new Date().getTime() },
+      success: function(data) {
+        refreshSizesTable(data.sizes);
+      },
+      error: function(err) {
+        console.error('Erro ao carregar tamanhos:', err);
+        showError('Falha ao carregar tamanhos');
+      }
+    });
+  }
+
+  function loadSuppliers() {
+    $.ajax({
+      url: '{% url "get_suppliers" %}',
+      method: 'GET',
+      cache: false,
+      data: { _t: new Date().getTime() },
+      success: function(data) {
+        refreshSuppliersTable(data.suppliers);
+      },
+      error: function(err) {
+        console.error('Erro ao carregar fornecedores:', err);
+        showError('Falha ao carregar fornecedores');
+      }
+    });
+  }
+
+
+  function loadCategories() {
+    $.ajax({
+        url: '{% url "get_categories" %}',
+        method: 'GET',
+        cache: false,
+        data: { _t: new Date().getTime() },
+        success: function(data) {
+            refreshCategoriesTable(data.categories);
+        },
+        error: function(err) {
+            console.error('Erro ao carregar categorias:', err);
+            showError('Falha ao carregar categorias');
+        }
+    });
+  }
+
+  function displayCategories(categories) {
+    refreshCategoriesTable(categories);
+  }
+
+  function updateCategoriesCount(count) {
+      $('.nav-tabs .nav-link[data-bs-target="#categories"] .badge').text(count);
+  }
+
+  function showSuccessMessage(message) {
+      showSuccess(message);
+  }
+
+  function showWarningMessage(message) {
+      console.warn('⚠️', message);
+  }
+
+  function showErrorMessage(message) {
+      showError(message);
+  }
+
+  function loadBrands() {
+    $.ajax({
+      url: '{% url "get_brands" %}',
+      method: 'GET',
+      cache: false,
+      data: { _t: new Date().getTime() },
+      success: function(data) {
+        refreshBrandsTable(data.brands);
+      },
+      error: function(err) {
+        console.error('Erro ao carregar marcas:', err);
+        showError('Falha ao carregar marcas');
+      }
+    });
+  }
+
+  function showDeleteConfirmation(type, id, name) {
+    deleteType = type;
+    deleteId = id;
+    
+    let itemTypeName = '';
+    switch(type) {
+      case 'color': itemTypeName = 'esta cor'; break;
+      case 'size': itemTypeName = 'este tamanho'; break;
+      case 'category': itemTypeName = 'esta categoria'; break;
+      case 'brand': itemTypeName = 'esta marca'; break;
+      case 'supplier': itemTypeName = 'este fornecedor'; break;
+    }
+    
+    $('#deleteItemText').text(`Tem a certeza de que deseja eliminar ${itemTypeName}?`);
+    $('#deleteItemName').text(name);
+    
+    $('#deleteConfirmModal').modal('show');
+  }
+
+  // Delete functions for each item type
+  function deleteColor(code) {
+    $.ajax({
+      url: getColorDeleteUrl(code),
+      method: 'DELETE',
+      headers: {
+        'X-CSRFToken': getCsrfToken()
+      },
+      success: function() {
+        showSuccess('Cor eliminada com sucesso');
+        loadColors();
+      },
+      error: function(err) {
+        console.error('Erro ao eliminar cor:', err);
+        showError('Falha ao eliminar cor: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+      }
+    });
+  }
+
+  function deleteSize(code) {
+    $.ajax({
+      url: getSizeDeleteUrl(code),
+      method: 'DELETE',
+      headers: {
+        'X-CSRFToken': getCsrfToken()
+      },
+      success: function() {
+        showSuccess('Tamanho eliminado com sucesso');
+        loadSizes();
+      },
+      error: function(err) {
+        console.error('Erro ao eliminar tamanho:', err);
+        showError('Falha ao eliminar tamanho: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+      }
+    });
+  }
+
+  function deleteBrand(name) {
+    $.ajax({
+      url: getBrandDeleteUrl(name),
+      method: 'DELETE',
+      headers: {
+        'X-CSRFToken': getCsrfToken()
+      },
+      success: function() {
+        showSuccess('Marca eliminada com sucesso');
+        loadBrands();
+      },
+      error: function(err) {
+        console.error('Erro ao eliminar marca:', err);
+        showError('Falha ao eliminar marca: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+      }
+    });
+  }
+
+  // Delete confirmation button handler
+  $('#confirmDeleteBtn').on('click', function() {
+    $('#deleteConfirmModal').modal('hide');
+    
+    switch(deleteType) {
+      case 'color':
+        deleteColor(deleteId);
+        break;
+      case 'size':
+        deleteSize(deleteId);
+        break;
+      case 'brand':
+        deleteBrand(deleteId);
+        break;
+    }
+  });
+
+  // Initial data loading
+  loadColors();
+  
+  // Load data when tab is activated
+  $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+    const target = $(e.target).attr("data-bs-target");
+    
+    switch(target) {
+      case '#sizes':
+        loadSizes();
+        break;
+      case '#suppliers':
+        loadSuppliers();
+        break;
+      case '#categories':
+        loadCategories();
+        break;
+      case '#brands':
+        loadBrands();
+        break;
+    }
+  });
+
+  $(document).off('click', '#addMarkupBtn').on('click', '#addMarkupBtn', function() {
+    const code = $('#supplierCode').val();
+    const markup = $('#supplierMarkup').val();
+    
+    if (!markup) {
+        showError('Por favor, preencha o markup');
+        return;
+    }
+    
+    // Confirmar adição
+    Swal.fire({
+        title: 'Adicionar novo markup?',
+        text: `Adicionar markup ${markup} e torná-lo ativo?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sim, adicionar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: getSupplierAddMarkupUrl(code),
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                data: JSON.stringify({
+                    markup: parseFloat(markup),
+                    make_active: true
+                }),
+                success: function(data) {
+                    console.log('✅ Markup criado com sucesso:', data);
+                    showSuccess('Markup adicionado com sucesso');
+                    
+                    // Limpar o campo
+                    $('#supplierMarkup').val('');
+                    
+                    // Atualizar tabela principal
+                    loadSuppliers();
+                    
+                    // CRÍTICO: Aguardar a base de dados atualizar e depois recarregar detalhes
+                    // Como o novo markup já é ativo, não precisa de botão "Guardar"
+                    setTimeout(function() {
+                        console.log('🔄 Recarregando detalhes após criar markup...');
+                        loadSupplierDetailsAfterCreate(code, data.new_markup_id);
+                    }, 300);
+                },
+                error: function(err) {
+                    console.error('❌ Erro ao adicionar markup:', err);
+                    showError('Falha ao adicionar markup: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+                }
+            });
+        }
+    });
+  });
+
+  function loadSupplierDetailsAfterCreate(code, newMarkupId) {
+    $.ajax({
+        url: getSupplierDetailUrl(code),
+        method: 'GET',
+        cache: false,
+        data: { _t: new Date().getTime() },
+        success: function(data) {
+            console.log('📋 Detalhes carregados após criação:', data);
+            
+            $('#supplierAction').val('update');
+            $('#supplierCode').val(data.code);
+            $('#supplierCodeDisplay').val(data.code);
+            $('#supplierName').val(data.name);
+            $('#supplierMarkup').val('');
+            
+            // IMPORTANTE: O novo markup já é ativo, então não há mudanças pendentes
+            const activeMarkupId = data.active_markup_id || '';
+            $('#activeMarkupId').val(activeMarkupId);
+            $('#pendingActiveMarkupId').val(activeMarkupId); // Mesmo ID = sem mudanças
+            
+            console.log('🎯 IDs após criação - Active:', activeMarkupId, 'Pending:', activeMarkupId);
+            
+            $('#supplierModalTitle').text('Manage Markups - ' + data.name);
+            $('#saveChangesBtn').hide(); // Esconder porque não há mudanças
+            
+            loadMarkupHistory(data.markups || [], activeMarkupId);
+            
+            // Mostrar feedback visual que o novo markup foi criado
+            if (newMarkupId) {
+                setTimeout(function() {
+                    const newMarkupElement = $(`.markup-item[data-markup-id="${newMarkupId}"]`);
+                    if (newMarkupElement.length) {
+                        newMarkupElement.addClass('border-success bg-light').find('.badge').addClass('bg-success').text('ATIVO (NOVO)');
+                        
+                        // Remover indicador "NOVO" após 3 segundos
+                        setTimeout(function() {
+                            newMarkupElement.find('.badge').text('ATIVO');
+                        }, 3000);
+                    }
+                }, 100);
+            }
+        },
+        error: function(err) {
+            console.error('❌ Erro ao recarregar detalhes:', err);
+            showError('Falha ao recarregar detalhes do fornecedor');
+        }
+    });
+  }
+
+  // Open modal for adding new color
+  $('#addColorBtn').on('click', function() {
+    $('#colorAction').val('create');
+    $('#colorCode').val('');
+    $('#colorName').val('');
+    $('#colorCode').prop('readonly', false);
+    $('#colorModalTitle').text('Adicionar Nova Cor');
+    $('#colorModal').modal('show');
+  });
+
+  // Open modal for editing color
+  $(document).on('click', '.edit-color', function() {
+    const code = $(this).data('code');
+    
+    $.ajax({
+      url: getColorDetailUrl(code),
+      method: 'GET',
+      cache: false,
+      data: { _t: new Date().getTime() },
+      success: function(data) {
+        $('#colorAction').val('update');
+        $('#colorCode').val(data.code);
+        $('#colorName').val(data.name);
+        $('#colorCode').prop('readonly', true);
+        $('#colorModalTitle').text('Editar Cor');
+        $('#colorModal').modal('show');
+      },
+      error: function(err) {
+        console.error('Erro ao buscar detalhes da cor:', err);
+        showError('Falha ao obter detalhes da cor: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+      }
+    });
+  });
+
+  // Save color (create or update)
+  $('#saveColorBtn').on('click', function() {
+    const action = $('#colorAction').val();
+    const code = $('#colorCode').val();
+    const name = $('#colorName').val();
+    
+    if (!code || !name) {
+      showError('Por favor, preencha todos os campos obrigatórios');
+      return;
+    }
+    
+    let url = colorCreateUrl;
+    let method = 'POST';
+    
+    if (action === 'update') {
+      url = getColorUpdateUrl(code);
+      method = 'PUT';
+    }
+    
+    $.ajax({
+      url: url,
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken()
+      },
+      data: JSON.stringify({
+        code: code,
+        name: name
+      }),
+      success: function(data) {
+        $('#colorModal').modal('hide');
+        showSuccess(action === 'create' ? 'Cor criada com sucesso' : 'Cor atualizada com sucesso');
+        loadColors();
+      },
+      error: function(err) {
+        console.error('Erro ao guardar cor:', err);
+        showError('Falha ao guardar cor: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+      }
+    });
+  });
+
+  // Delete color
+  $(document).on('click', '.delete-color', function() {
+    const code = $(this).data('code');
+    const name = $(this).data('name');
+    showDeleteConfirmation('color', code, name);
+  });
+
+  // ---- SIZES ----
+  // Open modal for adding new size
+  $('#addSizeBtn').on('click', function() {
+    $('#sizeAction').val('create');
+    $('#sizeCode').val('');
+    $('#sizeValue').val('');
+    $('#sizeCode').prop('readonly', false);
+    $('#sizeModalTitle').text('Adicionar Novo Tamanho');
+    $('#sizeModal').modal('show');
+  });
+
+  // Open modal for editing size
+  $(document).on('click', '.edit-size', function() {
+    const code = $(this).data('code');
+    
+    $.ajax({
+      url: getSizeDetailUrl(code),
+      method: 'GET',
+      cache: false,
+      data: { _t: new Date().getTime() },
+      success: function(data) {
+        $('#sizeAction').val('update');
+        $('#sizeCode').val(data.code);
+        $('#sizeValue').val(data.value);
+        $('#sizeCode').prop('readonly', true);
+        $('#sizeModalTitle').text('Editar Tamanho');
+        $('#sizeModal').modal('show');
+      },
+      error: function(err) {
+        console.error('Erro ao buscar detalhes do tamanho:', err);
+        showError('Falha ao obter detalhes do tamanho: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+      }
+    });
+  });
+
+  // Save size (create or update)
+  $('#saveSizeBtn').on('click', function() {
+    const action = $('#sizeAction').val();
+    const code = $('#sizeCode').val();
+    const value = $('#sizeValue').val();
+    
+    if (!code || !value) {
+      showError('Por favor, preencha todos os campos obrigatórios');
+      return;
+    }
+    
+    let url = sizeCreateUrl;
+    let method = 'POST';
+    
+    if (action === 'update') {
+      url = getSizeUpdateUrl(code);
+      method = 'PUT';
+    }
+    
+    $.ajax({
+      url: url,
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken()
+      },
+      data: JSON.stringify({
+        code: code,
+        value: value
+      }),
+      success: function(data) {
+        $('#sizeModal').modal('hide');
+        showSuccess(action === 'create' ? 'Tamanho criado com sucesso' : 'Tamanho atualizado com sucesso');
+        loadSizes();
+      },
+      error: function(err) {
+        console.error('Erro ao guardar tamanho:', err);
+        showError('Falha ao guardar tamanho: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+      }
+    });
+  });
+
+  // Delete size
+  $(document).on('click', '.delete-size', function() {
+    const code = $(this).data('code');
+    const name = $(this).data('name');
+    showDeleteConfirmation('size', code, name);
+  });
+
+  // Open modal for editing category
+  $(document).on('click', '.edit-category', function() {
+    const name = $(this).data('name');
+    
+    $.ajax({
+      url: getCategoryDetailUrl(name),
+      method: 'GET',
+      cache: false,
+      data: { _t: new Date().getTime() },
+      success: function(data) {
+        $('#categoryAction').val('update');
+        $('#categoryName').val(data.name);
+        $('#categoryOriginalName').val(data.name);
+        $('#categoryModalTitle').text('Editar Categoria');
+        $('#categoryModal').modal('show');
+      },
+      error: function(err) {
+        console.error('Erro ao buscar detalhes da categoria:', err);
+        showError('Falha ao obter detalhes da categoria: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+      }
+    });
+  });
+
+  // Save category (create or update)
+  $('#saveCategoryBtn').on('click', function() {
+    const action = $('#categoryAction').val();
+    const name = $('#categoryName').val();
+    
+    if (!name) {
+      showError('Por favor, preencha todos os campos obrigatórios');
+      return;
+    }
+    
+    let url = categoryCreateUrl;
+    let method = 'POST';
+    
+    if (action === 'update') {
+      const originalName = $('#categoryOriginalName').val();
+      url = getCategoryUpdateUrl(originalName);
+      method = 'PUT';
+    }
+    
+    $.ajax({
+      url: url,
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken()
+      },
+      data: JSON.stringify({
+        name: name
+      }),
+      success: function(data) {
+        $('#categoryModal').modal('hide');
+        showSuccess(action === 'create' ? 'Categoria criada com sucesso' : 'Categoria atualizada com sucesso');
+        loadCategories();
+      },
+      error: function(err) {
+        console.error('Erro ao guardar categoria:', err);
+        showError('Falha ao guardar categoria: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+      }
+    });
+  });
+
+
+  // ---- BRANDS ----
+  // Open modal for adding new brand
+  $('#addBrandBtn').on('click', function() {
+    $('#brandAction').val('create');
+    $('#brandName').val('');
+    $('#brandOriginalName').val('');
+    $('#brandModalTitle').text('Adicionar Nova Marca');
+    $('#brandModal').modal('show');
+  });
+
+  // Open modal for editing brand
+  $(document).on('click', '.edit-brand', function() {
+    const name = $(this).data('name');
+    
+    $.ajax({
+      url: getBrandDetailUrl(name),
+      method: 'GET',
+      cache: false,
+      data: { _t: new Date().getTime() },
+      success: function(data) {
+        $('#brandAction').val('update');
+        $('#brandName').val(data.name);
+        $('#brandOriginalName').val(data.name);
+        $('#brandModalTitle').text('Editar Marca');
+        $('#brandModal').modal('show');
+      },
+      error: function(err) {
+        console.error('Erro ao buscar detalhes da marca:', err);
+        showError('Falha ao obter detalhes da marca: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+      }
+    });
+  });
+
+  // Save brand (create or update)
+  $('#saveBrandBtn').on('click', function() {
+    const action = $('#brandAction').val();
+    const name = $('#brandName').val();
+    
+    if (!name) {
+      showError('Por favor, preencha todos os campos obrigatórios');
+      return;
+    }
+    
+    let url = brandCreateUrl;
+    let method = 'POST';
+    
+    if (action === 'update') {
+      const originalName = $('#brandOriginalName').val();
+      url = getBrandUpdateUrl(originalName);
+      method = 'PUT';
+    }
+    
+    $.ajax({
+      url: url,
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken()
+      },
+      data: JSON.stringify({
+        name: name
+      }),
+      success: function(data) {
+        $('#brandModal').modal('hide');
+        showSuccess(action === 'create' ? 'Marca criada com sucesso' : 'Marca atualizada com sucesso');
+        loadBrands();
+      },
+      error: function(err) {
+        console.error('Erro ao guardar marca:', err);
+        showError('Falha ao guardar marca: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+      }
+    });
+  });
+
+  $(document).on('click', '.delete-brand', function() {
+    const name = $(this).data('name');
+    showDeleteConfirmation('brand', name, name);
+  });
+
+  $(document).off('click', '.edit-supplier').on('click', '.edit-supplier', function() {
+    const code = $(this).data('code');
+    loadSupplierDetails(code);
+    $('#supplierModal').modal('show');
+  });
+
+  function setActiveMarkup(supplierCode, markupId) {
+    console.log('🔄 Ativando markup:', markupId, 'para fornecedor:', supplierCode);
+    
+    $.ajax({
+        url: getSupplierSetActiveMarkupUrl(supplierCode),
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        data: JSON.stringify({
+            markup_id: markupId
+        }),
+        success: function(data) {
+            console.log('✅ Markup ativado com sucesso:', data);
+            showSuccess('Markup ativo alterado com sucesso');
+            
+            // Atualizar tabela principal
+            loadSuppliers();
+
+            // FECHAR O MODAL após guardar mudanças
+            $('#supplierModal').modal('hide');
+            
+            loadSuppliers();
+
+            console.log('🚪 Modal fechado após guardar markup');
+        },
+        error: function(err) {
+            console.error('❌ Erro ao ativar markup:', err);
+            showError('Falha ao alterar markup ativo: ' + (err.responseJSON ? err.responseJSON.error : 'Erro desconhecido'));
+            
+            // Em caso de erro, recarregar detalhes (mantém modal aberto)
+            loadSupplierDetails(supplierCode);
+        }
+    });
+  }
+
+  function loadMarkupHistory(markups, activeMarkupId) {
+    console.log('📝 Carregando histórico:', markups, 'Active ID:', activeMarkupId);
+    const historyContainer = $('#markupHistory');
+    historyContainer.empty();
+    
+    if (markups.length === 0) {
+        historyContainer.html('<p class="text-muted mb-0 text-center py-3">Nenhum markup registado</p>');
+        return;
+    }
+    
+    markups.forEach(function(markup, index) {
+        const isActive = markup.is_active === true;
+        const badgeClass = isActive ? 'bg-success' : 'bg-secondary';
+        const statusText = isActive ? 'ATIVO' : 'HISTÓRICO';
+        const radioChecked = isActive ? 'checked' : '';
+        
+        if (!markup.id) {
+            console.error('❌ Markup sem ID:', markup);
+            return;
+        }
+        
+        console.log(`📌 Markup ${markup.id}: is_active=${markup.is_active}, isActive=${isActive}, checked=${radioChecked}`);
+        
+        historyContainer.append(`
+            <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded markup-item ${isActive ? 'border-success bg-light' : ''}" 
+                style="cursor: pointer; transition: all 0.2s;" data-markup-id="${markup.id}">
+                <div class="flex-grow-1">
+                    <div class="form-check">
+                        <input class="form-check-input markup-radio" type="radio" name="activeMarkup" 
+                              value="${markup.id}" id="markup_${markup.id}" ${radioChecked}>
+                        <label class="form-check-label" for="markup_${markup.id}" style="cursor: pointer;">
+                            <div class="d-flex align-items-center">
+                                <span class="fs-5 fw-bold me-2">${markup.markup}</span>
+                                <div>
+                                    <small class="text-muted d-block">${markup.created_at}</small>
+                                    <small class="text-muted">por ${markup.created_by}</small>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                <span class="badge ${badgeClass} ms-2">${statusText}</span>
+            </div>
+        `);
+    });
+    
+    // Event handlers para os radio buttons
+    $('.markup-radio').off('change').on('change', function() {
+        if (this.checked) {
+            const markupId = $(this).val();
+            const currentActiveId = $('#activeMarkupId').val();
+            
+            console.log('🔄 Radio selecionado:', markupId, 'Current Active:', currentActiveId);
+            
+            if (!markupId || markupId === '' || markupId === 'undefined') {
+                console.error('❌ Markup ID inválido:', markupId);
+                return;
+            }
+            
+            // Atualizar visualmente
+            $('.markup-item').removeClass('border-success bg-light');
+            $('.markup-item .badge').removeClass('bg-success').addClass('bg-secondary').text('HISTÓRICO');
+            
+            $(this).closest('.markup-item').addClass('border-success bg-light');
+            $(this).closest('.markup-item').find('.badge').removeClass('bg-secondary').addClass('bg-success').text('ATIVO');
+            
+            // Atualizar pending ID
+            $('#pendingActiveMarkupId').val(markupId);
+            
+            // Mostrar/esconder botão
+            if (String(markupId) !== String(currentActiveId)) {
+                $('#saveChangesBtn').show();
+                console.log('✅ Botão Guardar mostrado - Markup:', markupId, 'vs Current:', currentActiveId);
+            } else {
+                $('#saveChangesBtn').hide();
+                console.log('❌ Botão Guardar escondido - sem mudanças');
+            }
+        }
+    });
+    
+    // Click handlers
+    $('.markup-item').off('click').on('click', function(e) {
+        if (e.target.type !== 'radio' && !$(e.target).hasClass('form-check-label')) {
+            $(this).find('.markup-radio').trigger('click');
+        }
+    });
+    
+    // Hover effects
+    $('.markup-item').hover(
+        function() {
+            if (!$(this).hasClass('border-success')) {
+                $(this).addClass('border-primary bg-light');
+            }
+        },
+        function() {
+            if (!$(this).hasClass('border-success')) {
+                $(this).removeClass('border-primary bg-light');
+            }
+        }
+    );
+  }
+
+    
+  $(document).off('click', '#saveChangesBtn').on('click', '#saveChangesBtn', function() {
+    console.log('💾 Save Changes button clicked!');
+    
+    const code = $('#supplierCode').val();
+    const pendingMarkupId = $('#pendingActiveMarkupId').val();
+    const currentActiveId = $('#activeMarkupId').val();
+    
+    console.log('📊 Comparison - Code:', code, 'Pending:', pendingMarkupId, 'Current:', currentActiveId);
+    
+    // Validação básica
+    if (!pendingMarkupId || pendingMarkupId === '' || pendingMarkupId === 'undefined') {
+        console.error('❌ Validation failed: No markup selected');
+        showError('Nenhum markup selecionado');
+        return;
+    }
+    
+    // Verificar se realmente há mudanças
+    if (String(pendingMarkupId) === String(currentActiveId)) {
+        $('#supplierModal').modal('hide');
+        $('#saveChangesBtn').hide();
+        return;
+    }
+    
+    console.log('✅ Changes detected, showing confirmation dialog');
+    Swal.fire({
+        title: 'Alterar markup ativo?',
+        text: 'Tem a certeza de que deseja alterar o markup ativo?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sim',
+        cancelButtonText: 'Cancelar',
+    }).then((result) => {
+        console.log('🤔 Confirmation result:', result);
+        if (result.isConfirmed) {
+            console.log('👍 User confirmed, calling setActiveMarkup');
+            setActiveMarkup(code, pendingMarkupId);
+        } else {
+            console.log('👎 User cancelled, reverting selection');
+            loadSupplierDetails(code);
+        }
+    });
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

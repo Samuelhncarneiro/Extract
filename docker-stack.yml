@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  web-project-django:
+    image: aitigos_web:latest
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == ednu03
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.aitigos.rule=Host(`aitigos.com`) || Host(`www.aitigos.com`)"
+        - "traefik.http.routers.aitigos.entrypoints=web"
+        - "traefik.http.services.aitigos.loadbalancer.server.port=5005"
+        - "traefik.docker.network=traefik_proxy"
+    networks:
+      - traefik_proxy
+    environment:
+      - DJANGO_ENVIRONMENT=production
+      - DEBUG=False
+    env_file:
+      - .env.prod
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    deploy:
+      placement:
+        constraints:
+          - node.hostname == ednu03
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - redis_data:/data
+    networks:
+      - traefik_proxy
+
+volumes:
+  redis_data:
+
+networks:
+  traefik_proxy:
+    external: true
