@@ -12,7 +12,7 @@ Uma plataforma moderna e inteligente para gestão integrada de produtos e vendas
 
 ## Visão Geral
 
-O **Aitigos** é uma solução completa para empresas que precisam sincronizar e gerenciar produtos entre diferentes plataformas:
+O **Aitigos** é uma solução completa para empresas que precisam sincronizar e gerir produtos entre diferentes plataformas:
 
 - **Moloni**: Sistema de faturação e gestão empresarial
 - **Shopify**: Plataforma de e-commerce
